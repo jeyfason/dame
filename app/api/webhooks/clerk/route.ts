@@ -13,9 +13,19 @@ export async function POST(req: Request) {
     "svix-timestamp": req.headers.get("svix-timestamp") ?? "",
     "svix-signature": req.headers.get("svix-signature") ?? "",
   };
-  let evt: any;
+  type ClerkEvent = {
+    type: string;
+    data: {
+      id: string;
+      first_name?: string | null;
+      last_name?: string | null;
+      username?: string | null;
+      image_url?: string | null;
+    };
+  };
+  let evt: ClerkEvent;
   try {
-    evt = new Webhook(secret).verify(payload, headers);
+    evt = new Webhook(secret).verify(payload, headers) as unknown as ClerkEvent;
   } catch {
     return NextResponse.json({ error: "bad signature" }, { status: 400 });
   }

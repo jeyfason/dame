@@ -3,7 +3,8 @@ import * as schema from "../lib/db/schema";
 
 describe("schema v1", () => {
   it("exports users and feature_flags", () => {
-    expect((schema as any).users).toBeDefined();
-    expect((schema as any).featureFlags).toBeDefined();
+    const s = schema as Record<string, unknown>;
+    expect(s["users"]).toBeDefined();
+    expect(s["featureFlags"]).toBeDefined();
   });
 });
