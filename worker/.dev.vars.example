@@ -1,0 +1,7 @@
+# Local-only secrets for `wrangler dev`. NEVER commit real values.
+# Copy to .dev.vars (git-ignored) and fill in.
+GAME_TOKEN_SECRET="replace-with-rand-hex-32"
+CLERK_JWKS_URL="https://complete-cricket-3929.clerk.accounts.dev/.well-known/jwks.json"
+CLOUDFLARE_ACCOUNT_ID=""
+CLOUDFLARE_API_TOKEN=""
+NEXT_PUBLIC_ROOM_WS_URL="ws://localhost:8787"

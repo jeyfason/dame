@@ -34,3 +34,31 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Realtime Worker (Stage 3)
+
+`worker/` is a Cloudflare Worker + `GameRoom` Durable Object (one per gameId).
+Local dev: `cd worker && bun x wrangler dev --local` (needs `.dev.vars`, never commit it).
+
+### Where to find Cloudflare credentials
+
+- **Account ID**: open [dash.cloudflare.com](https://dash.cloudflare.com) — the ID is in the
+  dashboard URL (`dash.cloudflare.com/<ACCOUNT_ID>`) and on the Workers overview page.
+- **API token**: Dashboard → **My Profile → API Tokens → Create Token**.
+  Grant **Workers (edit)** + **Durable Objects (edit)**. Use it as `CLOUDFLARE_API_TOKEN`
+  (via `wrangler login` or env — never commit it).
+
+### `.dev.vars` template (copy to `worker/.dev.vars`, git-ignored)
+
+See `worker/.dev.vars.example`:
+
+```ini
+GAME_TOKEN_SECRET="replace-with-rand-hex-32"
+CLERK_JWKS_URL="https://<your-clerk-domain>/.well-known/jwks.json"
+CLOUDFLARE_ACCOUNT_ID=""
+CLOUDFLARE_API_TOKEN=""
+NEXT_PUBLIC_ROOM_WS_URL="ws://localhost:8787"
+```
+
+Generate the secret with `openssl rand -hex 32`. Deploy secrets with
+`wrangler secret put GAME_TOKEN_SECRET` (never in code or git).
