@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { Webhook } from "svix";
 import { db } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
@@ -29,17 +30,29 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "bad signature" }, { status: 400 });
   }
-  if (evt.type === "user.created" || evt.type === "user.updated") {
-    const u = evt.data;
-    const clerkId = u.id as string;
-    const displayName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || null;
-    const avatarUrl = u.image_url ?? null;
-    const existing = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1);
-    if (existing.length === 0) {
-      await db.insert(users).values({ clerkId, displayName, avatarUrl });
-    } else {
-      await db.update(users).set({ displayName, avatarUrl, updatedAt: new Date() }).where(eq(users.clerkId, clerkId));
+  if (!process.env.DATABASE_URL) {
+    Sentry.captureException(new Error("webhook: DATABASE_URL missing, failing fast"));
+    return NextResponse.json({ error: "db" }, { status: 500 });
+  }
+  try {
+    if (evt.type === "user.created" || evt.type === "user.updated") {
+      const u = evt.data;
+      const clerkId = u.id as string;
+      const displayName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || null;
+      const avatarUrl = u.image_url ?? null;
+      const existing = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(users).values({ clerkId, displayName, avatarUrl });
+      } else {
+        await db.update(users).set({ displayName, avatarUrl, updatedAt: new Date() }).where(eq(users.clerkId, clerkId));
+      }
+    } else if (evt.type === "user.deleted") {
+      const clerkId = evt.data.id as string;
+      await db.delete(users).where(eq(users.clerkId, clerkId));
     }
+  } catch (err) {
+    Sentry.captureException(err);
+    return NextResponse.json({ error: "db" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }
