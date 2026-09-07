@@ -175,6 +175,56 @@ export function legalMoves(state: GameState): Move[] {
   return quiets;
 }
 
+export function applyMove(state: GameState, move: Move): GameState {
+  const legal = legalMoves(state);
+  const match = legal.find(
+    (m) =>
+      m.from[0] === move.from[0] &&
+      m.from[1] === move.from[1] &&
+      m.to[0] === move.to[0] &&
+      m.to[1] === move.to[1] &&
+      m.captures.length === move.captures.length &&
+      m.captures.every((c, i) => c[0] === move.captures[i][0] && c[1] === move.captures[i][1]),
+  );
+  if (!match) throw new Error("illegal move");
+
+  const [fr, fc] = move.from;
+  const [tr, tc] = move.to;
+  const mover = state.turn;
+  const piece = state.board[fr][fc];
+  if (!piece || piece.color !== mover) throw new Error("illegal move");
+
+  const board: Board = state.board.map((row) => row.map((sq) => (sq ? { ...sq } : null)));
+  for (const [cr, cc] of move.captures) {
+    board[cr][cc] = null;
+  }
+  board[fr][fc] = null;
+  const placed: Piece = { color: piece.color, kind: piece.kind };
+  if (placed.kind === "man" && isBackRank(placed.color, tr)) {
+    placed.kind = "king";
+  }
+  board[tr][tc] = placed;
+
+  const nextTurn: Color = mover === "white" ? "black" : "white";
+  let hasOpponentPiece = false;
+  for (let r = 0; r < N && !hasOpponentPiece; r++) {
+    for (let c = 0; c < N; c++) {
+      const sq = board[r][c];
+      if (sq && sq.color === nextTurn) {
+        hasOpponentPiece = true;
+        break;
+      }
+    }
+  }
+  let winner: Color | null = null;
+  if (!hasOpponentPiece) {
+    winner = mover;
+  } else if (legalMoves({ board, turn: nextTurn, winner: null }).length === 0) {
+    winner = mover;
+  }
+  return { board, turn: nextTurn, winner };
+}
+
 export function initialBoard(): GameState {
   const board: Board = Array.from({ length: 10 }, () =>
     Array.from({ length: 10 }, () => null),
