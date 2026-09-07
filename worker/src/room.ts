@@ -1,6 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
-import { initialBoard } from "../../lib/rules/international";
-import type { GameState } from "../../lib/rules/types";
+import {
+  applyMove,
+  initialBoard,
+  legalMoves,
+} from "../../lib/rules/international";
+import type { GameState, Move } from "../../lib/rules/types";
 import { verifyJoinToken } from "./auth";
 import {
   ProtocolError,
@@ -25,6 +29,78 @@ export type JoinResult =
 
 export function createInitialSnapshot(): RoomSnapshot {
   return { state: initialBoard(), version: 0 };
+}
+
+// --- Authoritative move decision (pure, bundle-safe) ---
+//
+// DO decision is final: callers pass the current snapshot + claimant role.
+// Checks run in protocol order: game-over, stale baseVersion, turn, legality.
+
+export type MoveDecision =
+  | { ok: true; state: GameState; version: number }
+  | { ok: false; reason: string; state: GameState; version: number };
+
+export function decideMove(
+  snapshot: RoomSnapshot,
+  role: Role,
+  move: Move,
+  baseVersion: number,
+): MoveDecision {
+  if (snapshot.state.winner) {
+    return {
+      ok: false,
+      reason: "game over",
+      state: snapshot.state,
+      version: snapshot.version,
+    };
+  }
+  if (baseVersion !== snapshot.version) {
+    return {
+      ok: false,
+      reason: "stale version",
+      state: snapshot.state,
+      version: snapshot.version,
+    };
+  }
+  if (role !== snapshot.state.turn) {
+    return {
+      ok: false,
+      reason: "not your turn",
+      state: snapshot.state,
+      version: snapshot.version,
+    };
+  }
+  const legal = legalMoves(snapshot.state);
+  const match = legal.find(
+    (m) =>
+      m.from[0] === move.from[0] &&
+      m.from[1] === move.from[1] &&
+      m.to[0] === move.to[0] &&
+      m.to[1] === move.to[1] &&
+      m.captures.length === move.captures.length &&
+      m.captures.every(
+        (c, i) => c[0] === move.captures[i]?.[0] && c[1] === move.captures[i]?.[1],
+      ),
+  );
+  if (!match) {
+    return {
+      ok: false,
+      reason: "illegal move",
+      state: snapshot.state,
+      version: snapshot.version,
+    };
+  }
+  try {
+    const next = applyMove(snapshot.state, move);
+    return { ok: true, state: next, version: snapshot.version + 1 };
+  } catch {
+    return {
+      ok: false,
+      reason: "illegal move",
+      state: snapshot.state,
+      version: snapshot.version,
+    };
+  }
 }
 
 /** Pure join helper — unit-tested without workerd. Throws ProtocolError on malformed. */
@@ -62,18 +138,83 @@ interface Attachment {
   gameId?: string;
 }
 
-const RECONNECT_GRACE_MS = 120_000;
+export const RECONNECT_GRACE_MS = 120_000;
 
 export class GameRoom extends DurableObject<Env> {
   private gameState: GameState = initialBoard();
   private version = 0;
+  private history: Move[] = [];
   private lastSeen = new Map<Role, number>();
+  private disconnectedAt = new Map<Role, number>();
   private gameId: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    // Schema setup only; Task 2 adds SQLite persistence.
-    ctx.blockConcurrencyWhile(async () => {});
+    ctx.blockConcurrencyWhile(async () => {
+      this.ensureSchema();
+      this.loadPersisted();
+    });
+  }
+
+  private ensureSchema() {
+    try {
+      const sql = (
+        this.ctx as unknown as {
+          storage?: { sql?: { exec: (q: string, ...args: unknown[]) => unknown } };
+        }
+      ).storage?.sql;
+      sql?.exec(
+        `CREATE TABLE IF NOT EXISTS room_state (id INTEGER PRIMARY KEY CHECK (id = 1), state TEXT NOT NULL, version INTEGER NOT NULL, history TEXT NOT NULL)`,
+      );
+    } catch {
+      // storage.sql unavailable (unit tests) — stay in-memory.
+    }
+  }
+
+  private loadPersisted() {
+    try {
+      const sql = (
+        this.ctx as unknown as {
+          storage?: {
+            sql?: {
+              exec: <T>(q: string, ...args: unknown[]) => { toArray: () => T[] };
+            };
+          };
+        }
+      ).storage?.sql;
+      if (!sql) return;
+      const rows = sql
+        .exec<{ state: string; version: number; history: string }>(
+          `SELECT state, version, history FROM room_state WHERE id = 1`,
+        )
+        .toArray();
+      const row = rows[0];
+      if (row) {
+        this.gameState = JSON.parse(row.state) as GameState;
+        this.version = row.version;
+        this.history = JSON.parse(row.history) as Move[];
+      }
+    } catch {
+      // keep in-memory initial state
+    }
+  }
+
+  private persist() {
+    try {
+      const sql = (
+        this.ctx as unknown as {
+          storage?: { sql?: { exec: (q: string, ...args: unknown[]) => unknown } };
+        }
+      ).storage?.sql;
+      sql?.exec(
+        `INSERT OR REPLACE INTO room_state (id, state, version, history) VALUES (1, ?, ?, ?)`,
+        JSON.stringify(this.gameState),
+        this.version,
+        JSON.stringify(this.history),
+      );
+    } catch {
+      // in-memory fallback for tests
+    }
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -133,27 +274,61 @@ export class GameRoom extends DurableObject<Env> {
           return;
         }
         const role: Role = payload.role;
-        ws.serializeAttachment({ role, joined: true } satisfies Attachment);
+        ws.serializeAttachment({
+          role,
+          joined: true,
+          gameId: att.gameId ?? this.gameId ?? undefined,
+        } satisfies Attachment);
         this.lastSeen.set(role, Date.now());
+        this.disconnectedAt.delete(role);
+        if (this.disconnectedAt.size === 0) {
+          try {
+            await this.ctx.storage.deleteAlarm();
+          } catch {
+            // no alarm backend (unit tests)
+          }
+        }
+        // Resync: always send the authoritative snapshot. A stale
+        // lastVersion means the client missed moves — current state covers it.
         ws.send(
           encodeServerFrame({ t: "state", state: this.gameState, version: this.version }),
         );
         this.broadcastPresence();
         return;
       }
-      // Task 1: only join is authoritative; moves land in Task 2.
       if (!att.joined || !att.role) {
         ws.close(1008, "join first");
         return;
       }
-      ws.send(
-        encodeServerFrame({
-          t: "reject",
-          reason: "moves not yet supported",
-          state: this.gameState,
-          version: this.version,
-        }),
+      if (frame.t !== "move") {
+        ws.close(1003, "malformed frame");
+        return;
+      }
+      const decision = decideMove(
+        { state: this.gameState, version: this.version },
+        att.role,
+        frame.move,
+        frame.baseVersion,
       );
+      if (!decision.ok) {
+        ws.send(
+          encodeServerFrame({
+            t: "reject",
+            reason: decision.reason,
+            state: this.gameState,
+            version: this.version,
+          }),
+        );
+        return;
+      }
+      this.gameState = decision.state;
+      this.version = decision.version;
+      this.history.push(frame.move);
+      this.persist();
+      this.broadcastState();
+      if (this.gameState.winner) {
+        this.broadcastEnd(this.gameState.winner, "win");
+      }
     } catch (err) {
       const code = err instanceof ProtocolError ? err.closeCode : 1003;
       try {
@@ -164,16 +339,45 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  override async webSocketClose(ws: WebSocket) {
+  override async webSocketClose(ws: WebSocket, _code?: number, _reason?: string) {
+    void _code;
+    void _reason;
     const att = ws.deserializeAttachment() as Attachment | null;
     if (att?.role) {
-      this.lastSeen.set(att.role, Date.now());
-      // 120s reconnect grace: presence is recomputed on next join/broadcast.
-      setTimeout(() => {
-        this.broadcastPresence();
-      }, 0);
+      const now = Date.now();
+      this.lastSeen.set(att.role, now);
+      // 120s reconnect grace: state + version + history are retained so a
+      // rejoin with a stale lastVersion resyncs. Presence flips to offline
+      // immediately; the alarm only expires the grace bookkeeping.
+      this.disconnectedAt.set(att.role, now);
+      try {
+        await this.ctx.storage.setAlarm(now + RECONNECT_GRACE_MS);
+      } catch {
+        // no alarm backend (unit tests use a fake)
+      }
     }
     this.broadcastPresence();
+  }
+
+  override async alarm(): Promise<void> {
+    const now = Date.now();
+    let earliest: number | null = null;
+    for (const [role, at] of this.disconnectedAt) {
+      if (now - at >= RECONNECT_GRACE_MS) {
+        this.disconnectedAt.delete(role);
+      } else {
+        const expiry = at + RECONNECT_GRACE_MS;
+        if (earliest === null || expiry < earliest) earliest = expiry;
+      }
+    }
+    this.broadcastPresence();
+    if (earliest !== null) {
+      try {
+        await this.ctx.storage.setAlarm(earliest);
+      } catch {
+        // ignore (unit tests)
+      }
+    }
   }
 
   private connectedRoles(): Set<Role> {
@@ -185,9 +389,38 @@ export class GameRoom extends DurableObject<Env> {
     return roles;
   }
 
+  private broadcastState() {
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.joined || !att.role) continue;
+      try {
+        ws.send(
+          encodeServerFrame({
+            t: "state",
+            state: this.gameState,
+            version: this.version,
+          }),
+        );
+      } catch {
+        // ignore send to closing socket
+      }
+    }
+  }
+
+  private broadcastEnd(winner: "white" | "black", reason: string) {
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.joined || !att.role) continue;
+      try {
+        ws.send(encodeServerFrame({ t: "end", winner, reason }));
+      } catch {
+        // ignore send to closing socket
+      }
+    }
+  }
+
   private broadcastPresence() {
     const connected = this.connectedRoles();
-    void RECONNECT_GRACE_MS; // grace window enforced in Task 2 resync
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
       if (!att?.joined || !att.role) continue;

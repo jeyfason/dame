@@ -1,4 +1,4 @@
-import { mintJoinToken } from "./auth";
+import { mintJoinToken, verifyClerkToken } from "./auth";
 import type { Role } from "./protocol";
 
 export { GameRoom, type Env } from "./room";
@@ -7,6 +7,8 @@ export interface WorkerEnv {
   GAME_ROOM: DurableObjectNamespace;
   GAME_TOKEN_SECRET: string;
   CLERK_JWKS_URL: string;
+  /** Dev/test-only open mint. Never set in production (fail closed). */
+  E2E_BYPASS_AUTH?: string;
 }
 
 function json(data: unknown, status = 200): Response {
@@ -21,9 +23,25 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "POST" && url.pathname === "/room") {
-      // NOTE (Task 1 open-mint): this route currently mints join tokens
-      // without a Clerk session check. Task 2 wires require-Clerk here via
-      // verifyClerkToken (Authorization: Bearer <Clerk JWT> -> 401 unless valid).
+      // Clerk session required to close the open-mint gap. Dev/test-only
+      // bypass via E2E_BYPASS_AUTH=1 (mirrors Next middleware); production
+      // stays fail-closed — no bypass unless the var is explicitly set.
+      if (env.E2E_BYPASS_AUTH !== "1") {
+        if (!env.CLERK_JWKS_URL) {
+          return json({ error: "server misconfigured" }, 500);
+        }
+        const auth = request.headers.get("Authorization");
+        const token =
+          auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : null;
+        if (!token) {
+          return json({ error: "unauthorized" }, 401);
+        }
+        try {
+          await verifyClerkToken(token, env.CLERK_JWKS_URL);
+        } catch {
+          return json({ error: "unauthorized" }, 401);
+        }
+      }
       if (!env.GAME_TOKEN_SECRET) {
         return json({ error: "server misconfigured" }, 500);
       }
