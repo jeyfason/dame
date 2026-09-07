@@ -1,0 +1,15 @@
+:root {
+  --dame-felt: #0e3b2e;
+  --dame-felt-deep: #0a2c22;
+  --dame-ivory: #f5efe0;
+  --dame-ebony: #171a21;
+  --dame-gold: #d4a94e;
+  --dame-teal: #2dd4bf;
+  --dame-ink: #101418;
+  --dame-muted: #6b7280;
+  --dame-radius: 14px;
+}
+.dark {
+  --dame-felt: #0e3b2e;
+  --dame-ivory: #f5efe0;
+}
