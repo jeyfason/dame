@@ -39,4 +39,21 @@ test.describe("local 2-player board", () => {
     await page.getByTestId("square-5-2").click();
     await expect(page.getByTestId("turn-label")).toContainText(/black/i);
   });
+
+  test("reset restores white turn", async ({ page }) => {
+    await page.getByTestId("square-6-1").click();
+    await page.getByTestId("square-5-2").click();
+    await expect(page.getByTestId("turn-label")).toContainText(/black/i);
+    await page.getByTestId("reset-button").click();
+    await expect(page.getByTestId("turn-label")).toContainText(/white/i);
+    await expect(page.locator('[data-testid^="square-"]')).toHaveCount(100);
+  });
+
+  test("no premature winner lock after first move", async ({ page }) => {
+    await expect(page.getByTestId("winner-banner")).toHaveCount(0);
+    await page.getByTestId("square-6-1").click();
+    await page.getByTestId("square-5-2").click();
+    await expect(page.getByTestId("winner-banner")).toHaveCount(0);
+    await expect(page.getByTestId("turn-label")).toContainText(/black/i);
+  });
 });

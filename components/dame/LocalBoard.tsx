@@ -41,9 +41,13 @@ export function LocalBoard() {
     }
     const piece = state.board[r][c];
     if (piece && piece.color === state.turn) {
-      setSelected([r, c]);
       const pieceMoves = moves.filter((m) => m.from[0] === r && m.from[1] === c);
-      if (pieceMoves.length === 0) toast.error("Illegal move — that piece has no legal moves");
+      if (pieceMoves.length === 0) {
+        setSelected(null);
+        toast.error("Illegal move — that piece has no legal moves");
+      } else {
+        setSelected([r, c]);
+      }
       return;
     }
     toast.error("Illegal move");

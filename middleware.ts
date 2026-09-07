@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 
 const isProtected = createRouteMatcher(["/play(.*)", "/profile(.*)"]);
 
-// Local Playwright E2E bypass (dev/test only): skip Clerk so /play renders
-// without Clerk keys. Production always enforces Clerk (fail closed).
+// Playwright-only bypass for GET /play in local dev/test without Clerk keys.
+// Active solely when E2E_BYPASS_AUTH=1 and NODE_ENV!=="production".
 const isE2EBypass =
   process.env.E2E_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production";
 

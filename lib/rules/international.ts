@@ -1,4 +1,5 @@
 import type { Board, Color, GameState, Move, Piece } from "./types";
+import type { RulesModule } from "./variant";
 
 const N = 10;
 const DIRS: ReadonlyArray<readonly [number, number]> = [
@@ -51,7 +52,13 @@ function findManCaptures(
     extended = true;
     captured.add(key(mr, mc));
     taken.push([mr, mc]);
-    findManCaptures(board, color, lr, lc, originR, originC, captured, taken, out);
+    // Promotion ends the move: a man landing on its back rank stops here
+    // as a terminal path (promotes=true). No king-continuation.
+    if (isBackRank(color, lr)) {
+      out.push({ to: [lr, lc], captures: taken.map((t) => [...t] as [number, number]) });
+    } else {
+      findManCaptures(board, color, lr, lc, originR, originC, captured, taken, out);
+    }
     taken.pop();
     captured.delete(key(mr, mc));
   }
@@ -111,6 +118,9 @@ function findKingCaptures(
 function quietMoves(board: Board, color: Color, r: number, c: number, piece: Piece): Move[] {
   const moves: Move[] = [];
   if (piece.kind === "man") {
+    // Brief §6.1 deviation (documented): men step quietly forward AND
+    // backward. Strict FMJD quiet steps are forward-only; captures are
+    // already bidirectional here. Locked by regression test.
     for (const [dr, dc] of DIRS) {
       const nr = r + dr;
       const nc = c + dc;
@@ -137,6 +147,7 @@ function quietMoves(board: Board, color: Color, r: number, c: number, piece: Pie
 }
 
 export function legalMoves(state: GameState): Move[] {
+  if (state.winner) return [];
   const { board, turn } = state;
   const captures: { piece: Piece; r: number; c: number; path: CapturePath }[] = [];
   const quiets: Move[] = [];
@@ -176,6 +187,7 @@ export function legalMoves(state: GameState): Move[] {
 }
 
 export function applyMove(state: GameState, move: Move): GameState {
+  if (state.winner) throw new Error("illegal move");
   const legal = legalMoves(state);
   const match = legal.find(
     (m) =>
@@ -238,3 +250,9 @@ export function initialBoard(): GameState {
   }
   return { board, turn: "white", winner: null };
 }
+
+export const InternationalRules = {
+  initialBoard,
+  legalMoves,
+  applyMove,
+} satisfies RulesModule;
