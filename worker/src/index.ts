@@ -21,6 +21,9 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "POST" && url.pathname === "/room") {
+      // NOTE (Task 1 open-mint): this route currently mints join tokens
+      // without a Clerk session check. Task 2 wires require-Clerk here via
+      // verifyClerkToken (Authorization: Bearer <Clerk JWT> -> 401 unless valid).
       if (!env.GAME_TOKEN_SECRET) {
         return json({ error: "server misconfigured" }, 500);
       }

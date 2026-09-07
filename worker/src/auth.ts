@@ -127,6 +127,8 @@ export async function verifyJoinToken(
 //   https://<clerk-frontend-api>/.well-known/jwks.json
 // e.g. https://complete-cricket-3929.clerk.accounts.dev/.well-known/jwks.json
 // Tests stub `fetchImpl` — never hit network in unit tests.
+// TODO (Task 2 hardening): cache JWKS by kid with TTL + background refresh,
+//   and enforce iss/aud claims (issuer = Clerk frontend API, audience = app).
 
 interface JwksResponse {
   keys: Array<{

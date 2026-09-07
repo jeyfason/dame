@@ -59,6 +59,7 @@ export interface Env {
 interface Attachment {
   role: Role | null;
   joined: boolean;
+  gameId?: string;
 }
 
 const RECONNECT_GRACE_MS = 120_000;
@@ -67,6 +68,7 @@ export class GameRoom extends DurableObject<Env> {
   private gameState: GameState = initialBoard();
   private version = 0;
   private lastSeen = new Map<Role, number>();
+  private gameId: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -79,10 +81,24 @@ export class GameRoom extends DurableObject<Env> {
     if (upgrade !== "websocket") {
       return new Response("expected websocket", { status: 426 });
     }
+    // Bind this DO instance to the gameId in the URL so join tokens can be
+    // scoped per game (mirrors handleJoinFrame's expectedGameId check and
+    // blocks cross-game token reuse: token for game-A rejected on game-B).
+    try {
+      const pathname = new URL(request.url).pathname;
+      const m = pathname.match(/^\/room\/([^/]+)\/ws$/);
+      if (m?.[1]) this.gameId = decodeURIComponent(m[1]);
+    } catch {
+      // keep this.gameId null; webSocketMessage then verifies without scope
+    }
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ role: null, joined: false } satisfies Attachment);
+    server.serializeAttachment({
+      role: null,
+      joined: false,
+      gameId: this.gameId ?? undefined,
+    } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -97,9 +113,13 @@ export class GameRoom extends DurableObject<Env> {
       const frame = parseClientFrame(raw);
       if (frame.t === "join") {
         const secret = (this.env as Env).GAME_TOKEN_SECRET ?? "";
-        const payload = await verifyJoinToken(frame.token, secret).catch(
-          () => null,
-        );
+        // Scope verification to this game (mirrors handleJoinFrame helper).
+        const expectedGameId = att.gameId ?? this.gameId ?? undefined;
+        const payload = await verifyJoinToken(
+          frame.token,
+          secret,
+          expectedGameId ?? undefined,
+        ).catch(() => null);
         if (!payload) {
           ws.send(
             encodeServerFrame({
