@@ -99,6 +99,11 @@ export interface FinishStore {
  * Duplicate with full history returns zero deltas; duplicate with missing
  * history (crash between insertGame and history writes) recomputes and
  * persists instead of reporting a false zero-delta success.
+ * TODO (live-DB hardening): crash between saveRating and addHistory can
+ * double-apply on recovery (recompute runs on already-moved ratings).
+ * Needs a multi-statement txn (not available on neon-http) or an idempotency
+ * guard (e.g. conditional save on history-absent / rating version) so the
+ * retry is a no-op when ratings already moved.
  */
 export async function persistFinishedGame(
   store: FinishStore,

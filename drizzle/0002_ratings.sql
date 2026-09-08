@@ -1,3 +1,4 @@
+create extension if not exists "pgcrypto";
 create table if not exists games (
   id uuid primary key,
   white_clerk_id text not null,

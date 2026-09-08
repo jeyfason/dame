@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { invites } from "@/lib/db/schema";
 import {
@@ -66,12 +66,19 @@ export function drizzleInviteStore(database: typeof db): InviteStore {
       };
     },
     async markUsed(code, now) {
-      // Conditional consume: only a fresh row flips to used, so two
-      // concurrent redeems cannot both succeed.
+      // Conditional consume: only a fresh, unexpired row flips to used, so
+      // two concurrent redeems cannot both succeed and an expiry racing the
+      // consume cannot be redeemed (falls through to the 410 path below).
       const rows = await database
         .update(invites)
         .set({ usedAt: now })
-        .where(and(eq(invites.code, code), isNull(invites.usedAt)))
+        .where(
+          and(
+            eq(invites.code, code),
+            isNull(invites.usedAt),
+            gt(invites.expiresAt, now),
+          ),
+        )
         .returning();
       const r = rows[0];
       if (!r || !r.gameId) return null;
@@ -145,6 +152,13 @@ async function redeemCode(
   }
   const used = await deps.store.markUsed(code, now);
   if (!used) {
+    // Lost a race: re-read to distinguish expired (410) from used (409).
+    // Covers the expiry racing the conditional consume above.
+    const reread: InviteRecord | null = await deps.store.findByCode(code);
+    const reblocked = redeemCheck(reread, now);
+    if (reblocked?.status === 410) {
+      return NextResponse.json({ error: "code expired" }, { status: 410 });
+    }
     // Lost a concurrent redeem race: the code is now used.
     return NextResponse.json({ error: "code already used" }, { status: 409 });
   }
@@ -164,6 +178,42 @@ export async function handleRedeemInvite(
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
   return redeemCode((body as Record<string, unknown> | null)?.code, deps);
+}
+
+/** GET read-only lookup → { code, gameId, expiresAt }. Never consumes. */
+export async function handleLookupInvite(
+  req: Request,
+  deps: InviteDeps,
+): Promise<Response> {
+  const userId = await deps.clerkAuth();
+  if (!userId) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const codeParam = new URL(req.url).searchParams.get("code");
+  const code =
+    typeof codeParam === "string"
+      ? normalizeCode(codeParam.replace(/\s+/g, ""))
+      : null;
+  if (!code) {
+    return NextResponse.json({ error: "unknown code" }, { status: 404 });
+  }
+  const now = deps.now?.() ?? new Date();
+  const row: InviteRecord | null = await deps.store.findByCode(code);
+  const blocked = redeemCheck(row, now);
+  if (blocked) {
+    const error =
+      blocked.status === 410
+        ? "code expired"
+        : blocked.status === 409
+          ? "code already used"
+          : "unknown code";
+    return NextResponse.json({ error }, { status: blocked.status });
+  }
+  return NextResponse.json({
+    code: row!.code,
+    gameId: row!.gameId,
+    expiresAt: row!.expiresAt.toISOString(),
+  });
 }
 
 export async function POST(req: Request) {
@@ -187,7 +237,7 @@ export async function POST(req: Request) {
   return handleMintInvite(req, deps);
 }
 
-/** GET ?code= → redeem (one-click invite links consume on open). */
+/** GET ?code= → read-only lookup (never consumes; POST redeems). */
 export async function GET(req: Request) {
   const deps: InviteDeps = {
     store: drizzleInviteStore(db),
@@ -197,5 +247,5 @@ export async function GET(req: Request) {
   if (code === null) {
     return NextResponse.json({ error: "code required" }, { status: 400 });
   }
-  return redeemCode(code, deps);
+  return handleLookupInvite(req, deps);
 }

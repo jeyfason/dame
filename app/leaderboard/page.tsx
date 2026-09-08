@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
-import { desc } from "drizzle-orm";
+import { desc, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { ratings } from "@/lib/db/schema";
+import { ratings, users } from "@/lib/db/schema";
 
 // Public top-100 ladder by rating. Reads only; degrades to an empty state
 // when the database is unreachable (fail-closed, never 500s the page).
@@ -17,12 +17,25 @@ export default async function Leaderboard() {
     );
   }
   let rows: (typeof ratings.$inferSelect)[] = [];
+  let names = new Map<string, string>();
   try {
     rows = await db
       .select()
       .from(ratings)
       .orderBy(desc(ratings.rating))
       .limit(100);
+    if (rows.length > 0) {
+      const ids = rows.map((r) => r.clerkId);
+      const userRows = await db
+        .select()
+        .from(users)
+        .where(inArray(users.clerkId, ids));
+      names = new Map(
+        userRows
+          .filter((u) => u.displayName)
+          .map((u) => [u.clerkId, u.displayName as string]),
+      );
+    }
   } catch (err) {
     Sentry.captureException(err);
     console.error("leaderboard: failed to load ratings", err);
@@ -53,7 +66,7 @@ export default async function Leaderboard() {
               style={{ background: "var(--dame-felt-deep)" }}
             >
               <span className="font-semibold">
-                #{i + 1} {r.clerkId.slice(0, 12)}
+                #{i + 1} {names.get(r.clerkId) ?? r.clerkId.slice(0, 12)}
               </span>
               <span className="text-sm opacity-70">
                 {Math.round(r.rating)} · RD {Math.round(r.rd)} ·{" "}

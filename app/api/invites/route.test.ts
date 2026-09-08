@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { handleMintInvite, handleRedeemInvite } from "./route";
+import { handleMintInvite, handleRedeemInvite, handleLookupInvite } from "./route";
 import type {
   InviteRecord,
   InviteStore,
@@ -42,6 +42,13 @@ function redeemReq(code: unknown): Request {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ code }),
   });
+}
+
+function lookupReq(code: string): Request {
+  return new Request(
+    `http://localhost/api/invites?code=${encodeURIComponent(code)}`,
+    { method: "GET" },
+  );
 }
 
 describe("api/invites", () => {
@@ -146,5 +153,65 @@ describe("api/invites", () => {
       ...authed("user_guest"),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("GET lookup is read-only (no consume)", async () => {
+    const store = new MemoryInvites();
+    const minted = await handleMintInvite(mintReq(), {
+      store,
+      ...authed("user_host"),
+    });
+    const { code, gameId } = (await minted.json()) as {
+      code: string;
+      gameId: string;
+    };
+    const first = await handleLookupInvite(lookupReq(code), {
+      store,
+      ...authed("user_guest"),
+    });
+    expect(first.status).toBe(200);
+    expect(((await first.json()) as { gameId: string }).gameId).toBe(gameId);
+    // Still fresh: second lookup ok, then POST redeem still works.
+    const second = await handleLookupInvite(lookupReq(code), {
+      store,
+      ...authed("user_guest"),
+    });
+    expect(second.status).toBe(200);
+    expect(store.rows.get(code)?.usedAt).toBeNull();
+    const redeem = await handleRedeemInvite(redeemReq(code), {
+      store,
+      ...authed("user_guest"),
+    });
+    expect(redeem.status).toBe(200);
+  });
+
+  it("expired race on consume returns 410 (not 409)", async () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const fresh: InviteRecord = {
+      code: "ABCDEFGH",
+      hostClerkId: "user_host",
+      gameId: "123e4567-e89b-12d3-a456-426614174000",
+      expiresAt: new Date(now.getTime() + 1000),
+      usedAt: null,
+    };
+    let calls = 0;
+    const racy: InviteStore = {
+      async insert() {},
+      async findByCode() {
+        calls++;
+        // First read fresh, second read (after failed consume) expired.
+        if (calls === 1) return { ...fresh };
+        return { ...fresh, expiresAt: new Date(now.getTime() - 1000) };
+      },
+      async markUsed() {
+        return null;
+      },
+    };
+    const res = await handleRedeemInvite(redeemReq("ABCDEFGH"), {
+      store: racy,
+      ...authed("user_guest"),
+      now: () => now,
+    });
+    expect(res.status).toBe(410);
   });
 });

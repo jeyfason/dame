@@ -245,14 +245,16 @@ export async function handleFinish(
   }
 
   // Auth: worker HMAC first, else Clerk session. Anything else → 401.
+  // Clerk callers must also be a participant (white/black) → else 403.
   const workerAuthed = verifyWorkerSignature(
     raw,
     req.headers.get("x-worker-signature"),
     process.env.GAME_TOKEN_SECRET,
   );
+  let clerkUserId: string | null = null;
   if (!workerAuthed) {
-    const userId = await deps.clerkAuth();
-    if (!userId) {
+    clerkUserId = await deps.clerkAuth();
+    if (!clerkUserId) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }
@@ -260,6 +262,14 @@ export async function handleFinish(
   const parsed = parseFinishBody(body);
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  if (!workerAuthed) {
+    if (
+      clerkUserId !== parsed.input.whiteClerkId &&
+      clerkUserId !== parsed.input.blackClerkId
+    ) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
   }
 
   const result = await persistFinishedGame(deps.store, parsed.input);

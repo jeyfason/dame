@@ -516,7 +516,7 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private async broadcastEnd(winner: "white" | "black", reason: string) {
+  private async broadcastEnd(winner: "white" | "black" | "draw", reason: string) {
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
       if (!att?.joined || !att.role) continue;

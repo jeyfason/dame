@@ -78,13 +78,13 @@ export default async function Profile({ params }: { params: Promise<{ id: string
   if (!row) return <div className="py-10">Profile not found yet — sign in to create yours.</div>;
 
   const points = history.map((h) => Math.round(h.rating));
+  const lo = points.length > 0 ? Math.min(...points) : 0;
+  const hi = points.length > 0 ? Math.max(...points) : 0;
   const spark =
     points.length > 1
       ? points
           .map((p, i) => {
             const x = (i / (points.length - 1)) * 100;
-            const lo = Math.min(...points);
-            const hi = Math.max(...points);
             const y = hi === lo ? 50 : 100 - ((p - lo) / (hi - lo)) * 100;
             return `${x.toFixed(1)},${y.toFixed(1)}`;
           })

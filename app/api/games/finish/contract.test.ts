@@ -32,6 +32,19 @@ describe("worker->route finish contract", () => {
     }
   });
 
+  it("draw body passes parseFinishBody (rated draw)", () => {
+    const raw = buildFinishBody({
+      gameId: GAME_ID,
+      whiteClerkId: "user_white",
+      blackClerkId: "user_black",
+      winner: "draw",
+      reason: "agreement",
+      moves: [],
+    });
+    const parsed = parseFinishBody(JSON.parse(raw) as unknown);
+    expect(parsed.ok).toBe(true);
+  });
+
   it("body carries no internal version field", () => {
     const raw = buildFinishBody({
       gameId: GAME_ID,

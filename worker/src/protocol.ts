@@ -42,7 +42,7 @@ export interface RejectFrame {
 
 export interface EndFrame {
   t: "end";
-  winner: "white" | "black" | null;
+  winner: "white" | "black" | "draw" | null;
   reason: string;
 }
 

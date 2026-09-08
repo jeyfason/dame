@@ -21,6 +21,9 @@
 // - GET /leaderboard document is stubbed to HTML listing both players,
 //   since the real page reads Neon directly.
 // - /api/room + WS move sync + rematch game creation stay REAL (linked stack).
+// TODO (live-DB follow-up): run this flow unmocked against a preview Neon
+// branch (real Clerk sessions + real invites/finish/leaderboard reads) to
+// cover the DB paths mocked here.
 import { test, expect, type Page } from "@playwright/test";
 
 const base = process.env.E2E_BASE_URL ?? "http://localhost:3100";
@@ -32,10 +35,6 @@ const WHITE_CLERK = "e2e-host";
 const BLACK_CLERK = "e2e-guest";
 
 function gameId(): string {
-  return crypto.randomUUID();
-}
-
-function newGameId(): string {
   return crypto.randomUUID();
 }
 
@@ -117,7 +116,6 @@ test.describe("invite flow", () => {
     browser,
   }) => {
     const sharedId = gameId();
-    const rematchId = newGameId();
 
     const hostCtx = await browser.newContext();
     const guestCtx = await browser.newContext();
@@ -231,7 +229,10 @@ test.describe("invite flow", () => {
         return { ok: true, gameId: data.gameId ?? "" };
       });
       expect(minted.ok).toBe(true);
-      const nextId = minted.gameId && minted.gameId.length > 10 ? minted.gameId : rematchId;
+      const UUID_RE =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      expect(minted.gameId).toMatch(UUID_RE);
+      const nextId = minted.gameId as string;
       expect(nextId).not.toBe(sharedId);
 
       await host.goto(`${base}/play/${nextId}?role=black`);

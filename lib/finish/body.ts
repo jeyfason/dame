@@ -7,7 +7,7 @@ export interface FinishBodyInput {
   gameId: string;
   whiteClerkId: string;
   blackClerkId: string;
-  winner: "white" | "black" | null;
+  winner: "white" | "black" | "draw" | null;
   reason: string;
   moves: unknown[];
 }

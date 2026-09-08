@@ -201,6 +201,26 @@ describe("games/finish", () => {
     expect(store.history.length).toBe(2);
   });
 
+  it("Clerk third-user 403 (not a participant)", async () => {
+    const store = new MemoryStore();
+    const body = validBody();
+    const res = await handleFinish(authedRequest(body, undefined), {
+      store,
+      clerkAuth: async () => "user_intruder",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("Clerk participant 200 (white posts own finish)", async () => {
+    const store = new MemoryStore();
+    const body = validBody();
+    const res = await handleFinish(authedRequest(body, undefined), {
+      store,
+      clerkAuth: async () => "user_white",
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("winner rating up, loser down; new-player RD shrinks; deltas returned", async () => {
     const store = new MemoryStore();
     const body = validBody();
