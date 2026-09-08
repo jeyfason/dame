@@ -27,6 +27,36 @@ export type JoinResult =
   | { ok: true; role: Role; snapshot: RoomSnapshot }
   | { ok: false; reason: string };
 
+/**
+ * Hex HMAC-SHA256 over the raw finish POST body, verified by the Next
+ * finish route (`x-worker-signature`). Null when WebCrypto is unavailable —
+ * the notify path then sends unsigned and Next falls back to Clerk auth.
+ */
+export async function signFinishBody(
+  body: string,
+  secret: string,
+): Promise<string | null> {
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const sig = new Uint8Array(
+      await crypto.subtle.sign(
+        "HMAC",
+        key,
+        new TextEncoder().encode(body),
+      ),
+    );
+    return [...sig].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+
 export function createInitialSnapshot(): RoomSnapshot {
   return { state: initialBoard(), version: 0 };
 }
@@ -426,7 +456,7 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private broadcastEnd(winner: "white" | "black", reason: string) {
+  private async broadcastEnd(winner: "white" | "black", reason: string) {
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
       if (!att?.joined || !att.role) continue;
@@ -437,7 +467,8 @@ export class GameRoom extends DurableObject<Env> {
       }
     }
     // Stage 3: notify finish endpoint when configured; Stage 4 persists.
-    // TODO Stage 4: persist result + update ratings from /api/games/finish.
+    // Signed with GAME_TOKEN_SECRET so Next verifies worker HMAC
+    // (hex HMAC-SHA256 over the raw body, x-worker-signature header).
     // When FINISH_URL is unset (local dev/tests) this is a no-op so the
     // stub path keeps working without network.
     const finishUrl = (this.env as Partial<Env>).FINISH_URL;
@@ -449,9 +480,17 @@ export class GameRoom extends DurableObject<Env> {
         reason,
         version: this.version,
       });
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      };
+      const secret = (this.env as Partial<Env>).GAME_TOKEN_SECRET;
+      if (secret) {
+        const sig = await signFinishBody(body, secret);
+        if (sig) headers["x-worker-signature"] = sig;
+      }
       const req = new Request(finishUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers,
         body,
       });
       const ctxAny = this.ctx as unknown as {
