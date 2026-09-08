@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { legalMoves } from "@/lib/rules/international";
 import { useGameRoom, type Role } from "@/hooks/useGameRoom";
@@ -104,6 +104,37 @@ function OnlineBoard({
   const { state, version, connected, you, opponentConnected, end, sendMove } =
     useGameRoom({ gameId, token });
   const [selected, setSelected] = useState<[number, number] | null>(null);
+  const router = useRouter();
+  const [rematching, setRematching] = useState(false);
+
+  // Rematch: fresh gameId, roles swapped (host takes the other color).
+  async function rematch() {
+    if (rematching) return;
+    setRematching(true);
+    try {
+      const res = await fetch("/api/room", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        gameId?: string;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.gameId) {
+        throw new Error(
+          res.status === 401
+            ? "Sign in to start a rematch."
+            : (data?.error ?? `Rematch failed (${res.status})`),
+        );
+      }
+      const nextRole: Role = initialRole === "white" ? "black" : "white";
+      router.push(`/play/${data.gameId}?role=${nextRole}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Rematch failed.");
+      setRematching(false);
+    }
+  }
 
   // Drop stale selection without an effect (server is authoritative):
   // if the selected piece is no longer ours to move, treat as unselected.
@@ -187,13 +218,32 @@ function OnlineBoard({
       {winner ? (
         <div
           data-testid="winner-banner"
-          className="flex items-center justify-between rounded-[var(--dame-radius)] border border-white/10 px-4 py-3"
+          className="grid gap-3 rounded-[var(--dame-radius)] border border-white/10 px-4 py-3"
           style={{ background: "var(--dame-felt-deep)" }}
         >
           <span className="font-bold">
             {winner === "white" ? "White" : "Black"} wins!
             {end?.reason && end.reason !== "win" ? ` (${end.reason})` : ""}
           </span>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              data-testid="rematch-button"
+              disabled={rematching}
+              onClick={rematch}
+              className="rounded-[var(--dame-radius)] bg-[var(--dame-gold)] px-5 py-3 font-semibold text-black disabled:opacity-50"
+            >
+              {rematching ? "Starting…" : "Rematch (swap colors)"}
+            </button>
+            <button
+              type="button"
+              data-testid="new-opponent"
+              onClick={() => router.push("/play/join")}
+              className="rounded-[var(--dame-radius)] border border-white/20 px-5 py-3"
+            >
+              New opponent
+            </button>
+          </div>
         </div>
       ) : null}
       <div
