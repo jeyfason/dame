@@ -119,3 +119,52 @@ describe("useGameRoom optimistic UI (Task 3 RED)", () => {
     expect(vi.mocked(toast.error)).toHaveBeenCalled();
   });
 });
+
+describe("useGameRoom resync/presence/end (Task 4 follow-up)", () => {
+  function setup() {
+    const { result } = renderHook(() =>
+      useGameRoom({
+        gameId: "game-123",
+        token: "tok",
+        wsUrl: "ws://test",
+        wsFactory: ((url: string) => new FakeWS(url)) as unknown as (
+          url: string,
+        ) => WebSocket,
+        reconnect: false,
+      }),
+    );
+    return { result, ws: lastWs(), snap: initialBoard() };
+  }
+
+  it("stale rejoin resyncs to latest authoritative state", async () => {
+    const { result, ws, snap } = setup();
+    await act(async () => {
+      ws.serverOpen();
+      ws.serverMessage({ t: "state", state: snap, version: 0 });
+      ws.serverMessage({ t: "state", state: { ...snap, turn: "black" }, version: 3 });
+    });
+    expect(result.current.version).toBe(3);
+    expect(result.current.state?.turn).toBe("black");
+  });
+
+  it("presence sets role and opponent flag", async () => {
+    const { result, ws, snap } = setup();
+    await act(async () => {
+      ws.serverOpen();
+      ws.serverMessage({ t: "state", state: snap, version: 0 });
+      ws.serverMessage({ t: "presence", you: "white", opponentConnected: true });
+    });
+    expect(result.current.you).toBe("white");
+    expect(result.current.opponentConnected).toBe(true);
+  });
+
+  it("end frame exposes winner and reason", async () => {
+    const { result, ws, snap } = setup();
+    await act(async () => {
+      ws.serverOpen();
+      ws.serverMessage({ t: "state", state: snap, version: 0 });
+      ws.serverMessage({ t: "end", winner: "black", reason: "win" });
+    });
+    expect(result.current.end).toEqual({ winner: "black", reason: "win" });
+  });
+});
