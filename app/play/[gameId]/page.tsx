@@ -105,13 +105,22 @@ function OnlineBoard({
     useGameRoom({ gameId, token });
   const [selected, setSelected] = useState<[number, number] | null>(null);
 
+  // Drop stale selection without an effect (server is authoritative):
+  // if the selected piece is no longer ours to move, treat as unselected.
+  const activeSelected =
+    selected && state?.board[selected[0]]?.[selected[1]]?.color === state?.turn
+      ? selected
+      : null;
+
   const moves = useMemo(() => (state ? legalMoves(state) : []), [state]);
   const selectedMoves = useMemo(
     () =>
-      selected
-        ? moves.filter((m) => m.from[0] === selected[0] && m.from[1] === selected[1])
+      activeSelected
+        ? moves.filter(
+            (m) => m.from[0] === activeSelected[0] && m.from[1] === activeSelected[1],
+          )
         : [],
-    [moves, selected],
+    [moves, activeSelected],
   );
   const destIds = useMemo(
     () => new Set(selectedMoves.map((m) => `${m.to[0]},${m.to[1]}`)),
@@ -132,8 +141,14 @@ function OnlineBoard({
 
   function handleSquare(r: number, c: number) {
     if (!state || state.winner || end?.winner) return;
+    // Client-side guard only — server remains authoritative (rejects wrong turn).
+    if (you && you !== state.turn) {
+      toast.error("Not your turn");
+      setSelected(null);
+      return;
+    }
     const dest = selectedMoves.find((m) => m.to[0] === r && m.to[1] === c);
-    if (selected && dest) {
+    if (activeSelected && dest) {
       sendMove(dest);
       setSelected(null);
       return;
@@ -192,7 +207,8 @@ function OnlineBoard({
           const c = i % 10;
           const dark = (r + c) % 2 === 1;
           const piece = state.board[r]?.[c];
-          const isSelected = selected !== null && selected[0] === r && selected[1] === c;
+          const isSelected =
+            activeSelected !== null && activeSelected[0] === r && activeSelected[1] === c;
           const isDest = destIds.has(`${r},${c}`);
           return (
             <button

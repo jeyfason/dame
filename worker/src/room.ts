@@ -112,6 +112,10 @@ export async function handleJoinFrame(
   if (frame.t !== "join") {
     throw new ProtocolError("expected join as first frame", 1003);
   }
+  // Fail closed: missing secret must reject (mirrors index.ts guard).
+  if (!ctx.secret) {
+    return { ok: false, reason: "unauthorized" };
+  }
   try {
     const payload = await verifyJoinToken(frame.token, ctx.secret, ctx.gameId);
     return {
@@ -130,6 +134,8 @@ export interface Env {
   GAME_ROOM: DurableObjectNamespace;
   GAME_TOKEN_SECRET: string;
   CLERK_JWKS_URL: string;
+  /** Stage 3: finish webhook target (Next /api/games/finish). Unset = no POST. */
+  FINISH_URL?: string;
 }
 
 interface Attachment {
@@ -253,7 +259,20 @@ export class GameRoom extends DurableObject<Env> {
     try {
       const frame = parseClientFrame(raw);
       if (frame.t === "join") {
-        const secret = (this.env as Env).GAME_TOKEN_SECRET ?? "";
+        // Fail closed: missing secret must reject (mirrors index.ts guard).
+        const secret = (this.env as Partial<Env>).GAME_TOKEN_SECRET;
+        if (!secret) {
+          ws.send(
+            encodeServerFrame({
+              t: "reject",
+              reason: "unauthorized",
+              state: this.gameState,
+              version: this.version,
+            }),
+          );
+          ws.close(1008, "unauthorized");
+          return;
+        }
         // Scope verification to this game (mirrors handleJoinFrame helper).
         const expectedGameId = att.gameId ?? this.gameId ?? undefined;
         const payload = await verifyJoinToken(
@@ -416,6 +435,36 @@ export class GameRoom extends DurableObject<Env> {
       } catch {
         // ignore send to closing socket
       }
+    }
+    // Stage 3: notify finish endpoint when configured; Stage 4 persists.
+    // TODO Stage 4: persist result + update ratings from /api/games/finish.
+    // When FINISH_URL is unset (local dev/tests) this is a no-op so the
+    // stub path keeps working without network.
+    const finishUrl = (this.env as Partial<Env>).FINISH_URL;
+    if (!finishUrl) return;
+    try {
+      const body = JSON.stringify({
+        gameId: this.gameId,
+        winner,
+        reason,
+        version: this.version,
+      });
+      const req = new Request(finishUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      const ctxAny = this.ctx as unknown as {
+        waitUntil?: (p: Promise<unknown>) => void;
+      };
+      const pending = fetch(req).then(
+        () => undefined,
+        () => undefined,
+      );
+      if (typeof ctxAny.waitUntil === "function") ctxAny.waitUntil(pending);
+      else void pending;
+    } catch {
+      // never fail the game path on finish notify
     }
   }
 

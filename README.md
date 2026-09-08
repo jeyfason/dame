@@ -62,3 +62,16 @@ NEXT_PUBLIC_ROOM_WS_URL="ws://localhost:8787"
 
 Generate the secret with `openssl rand -hex 32`. Deploy secrets with
 `wrangler secret put GAME_TOKEN_SECRET` (never in code or git).
+
+### Create-game URL flow (no new UI)
+
+- `POST /api/room` (Clerk session required; `E2E_BYPASS_AUTH=1` only outside
+  production) → `{ gameId, tokens: { white, black }, wsUrl }`.
+- `GET /api/room?gameId=<id>&role=white|black` → `{ gameId, role, token, wsUrl }`.
+- Open `/play/<gameId>?role=white` and `/play/<gameId>?role=black` — the page
+  fetches its role token via `GET /api/room` then joins
+  `${NEXT_PUBLIC_ROOM_WS_URL}/room/<gameId>/ws`.
+- Worker parity: `POST /room` (same Clerk gate) mints both tokens;
+  `GET /room/<gameId>/ws` upgrades. Game end POSTs `{ gameId, winner, reason,
+  version }` to `FINISH_URL` when set (else no-op); Next stub
+  `POST /api/games/finish` logs + returns 200 (Stage 4 persists).

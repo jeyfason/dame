@@ -47,6 +47,16 @@ describe("GameRoom join/auth (Task 1 RED)", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("missing secret fail-closed rejects valid-shaped token", async () => {
+    const token = await mintJoinToken("game-123", "white", SECRET, 3600);
+    const result = await handleJoinFrame(JSON.stringify({ t: "join", token }), {
+      gameId: "game-123",
+      secret: "",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("unauthorized");
+  });
+
   it("rejects cross-game token reuse (game-A token on game-B)", async () => {
     const token = await mintJoinToken("game-A", "white", SECRET, 3600);
     await expect(verifyJoinToken(token, SECRET, "game-B")).rejects.toThrow(
@@ -118,8 +128,10 @@ describe("GameRoom join/auth (Task 1 RED)", () => {
     );
     const claims = await verifyClerkToken(good, jwksUrl, fetchImpl);
     expect(claims.sub).toBe("user_123");
-    // bad signature
-    const bad = `${good.slice(0, -1)}${good.endsWith("A") ? "B" : "A"}`;
+    // bad signature — flip a middle char (last-char flips can be lost to base64 padding bits)
+    const mid = Math.floor(good.length / 2);
+    const midChar = good[mid]!;
+    const bad = `${good.slice(0, mid)}${midChar === "A" ? "B" : "A"}${good.slice(mid + 1)}`;
     await expect(verifyClerkToken(bad, jwksUrl, fetchImpl)).rejects.toThrow();
     // expired
     const expired = await sign(
@@ -383,6 +395,26 @@ describe("GameRoom authoritative moves (Task 2 RED)", () => {
     expect(setTimeoutSpy).not.toHaveBeenCalled();
     setTimeoutSpy.mockRestore();
     expect(typeof (room as unknown as { alarm?: unknown }).alarm).toBe("function");
+  });
+
+  it("missing GAME_TOKEN_SECRET fail-closed: WS join rejects + closes 1008", async () => {
+    const { room, ctx } = makeRoom();
+    (room as unknown as { env: unknown }).env = {
+      GAME_TOKEN_SECRET: "",
+      CLERK_JWKS_URL: "https://clerk.test/.well-known/jwks.json",
+    };
+    const token = await mintJoinToken("game-123", "white", SECRET, 3600);
+    const ws = makeFakeSocket();
+    ctx.sockets.push(ws);
+    await room.webSocketMessage(
+      ws as unknown as WebSocket,
+      JSON.stringify({ t: "join", token }),
+    );
+    const frames = ws.sent.map((s) => JSON.parse(s));
+    const reject = frames.find((f) => f.t === "reject");
+    expect(reject).toBeDefined();
+    expect(reject.reason).toBe("unauthorized");
+    expect(ws.closed?.code).toBe(1008);
   });
 });
 

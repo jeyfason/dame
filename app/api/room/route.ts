@@ -44,7 +44,7 @@ function isValidGameId(v: unknown): v is string {
   );
 }
 
-async function mintJoinToken(
+export async function mintJoinToken(
   gameId: string,
   role: Role,
   secret: string,
