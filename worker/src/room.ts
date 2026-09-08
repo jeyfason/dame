@@ -6,6 +6,7 @@ import {
 } from "../../lib/rules/international";
 import type { GameState, Move } from "../../lib/rules/types";
 import { verifyJoinToken } from "./auth";
+import { buildFinishBody } from "../../lib/finish/body";
 import {
   ProtocolError,
   encodeServerFrame,
@@ -60,6 +61,11 @@ export async function signFinishBody(
 export function createInitialSnapshot(): RoomSnapshot {
   return { state: initialBoard(), version: 0 };
 }
+
+// gameId is UUIDv4 (enforced at creation + join boundaries); the finish
+// route validates UUID and stores it in uuid PKs.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // --- Authoritative move decision (pure, bundle-safe) ---
 //
@@ -183,6 +189,8 @@ export class GameRoom extends DurableObject<Env> {
   private lastSeen = new Map<Role, number>();
   private disconnectedAt = new Map<Role, number>();
   private gameId: string | null = null;
+  /** Clerk identity per role, bound at WS join from the token `sub` claim. */
+  private clerkIds = new Map<Role, string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -201,6 +209,10 @@ export class GameRoom extends DurableObject<Env> {
       ).storage?.sql;
       sql?.exec(
         `CREATE TABLE IF NOT EXISTS room_state (id INTEGER PRIMARY KEY CHECK (id = 1), state TEXT NOT NULL, version INTEGER NOT NULL, history TEXT NOT NULL)`,
+      );
+      // Separate table (not a room_state column) so old rows need no migration.
+      sql?.exec(
+        `CREATE TABLE IF NOT EXISTS room_meta (id INTEGER PRIMARY KEY CHECK (id = 1), clerk_ids TEXT NOT NULL)`,
       );
     } catch {
       // storage.sql unavailable (unit tests) — stay in-memory.
@@ -230,8 +242,42 @@ export class GameRoom extends DurableObject<Env> {
         this.version = row.version;
         this.history = JSON.parse(row.history) as Move[];
       }
+      try {
+        const meta = sql
+          .exec<{ clerk_ids: string }>(
+            `SELECT clerk_ids FROM room_meta WHERE id = 1`,
+          )
+          .toArray()[0];
+        if (meta) {
+          const parsed = JSON.parse(meta.clerk_ids) as Record<string, string>;
+          for (const [role, id] of Object.entries(parsed)) {
+            if ((role === "white" || role === "black") && typeof id === "string") {
+              this.clerkIds.set(role, id);
+            }
+          }
+        }
+      } catch {
+        // no meta yet — identities rebind on next join
+      }
     } catch {
       // keep in-memory initial state
+    }
+  }
+
+  /** Persist role->clerkId identity so finish survives DO eviction. */
+  private persistMeta() {
+    try {
+      const sql = (
+        this.ctx as unknown as {
+          storage?: { sql?: { exec: (q: string, ...args: unknown[]) => unknown } };
+        }
+      ).storage?.sql;
+      sql?.exec(
+        `INSERT OR REPLACE INTO room_meta (id, clerk_ids) VALUES (1, ?)`,
+        JSON.stringify(Object.fromEntries(this.clerkIds)),
+      );
+    } catch {
+      // in-memory fallback for tests
     }
   }
 
@@ -261,10 +307,18 @@ export class GameRoom extends DurableObject<Env> {
     // Bind this DO instance to the gameId in the URL so join tokens can be
     // scoped per game (mirrors handleJoinFrame's expectedGameId check and
     // blocks cross-game token reuse: token for game-A rejected on game-B).
+    // gameId must be UUIDv4 (member-join enforcement, mirrors index.ts and
+    // Next /api/room) so the rated-finish POST never 400s on format.
     try {
       const pathname = new URL(request.url).pathname;
       const m = pathname.match(/^\/room\/([^/]+)\/ws$/);
-      if (m?.[1]) this.gameId = decodeURIComponent(m[1]);
+      if (m?.[1]) {
+        const id = decodeURIComponent(m[1]);
+        if (!UUID_RE.test(id)) {
+          return new Response("bad gameId", { status: 400 });
+        }
+        this.gameId = id;
+      }
     } catch {
       // keep this.gameId null; webSocketMessage then verifies without scope
     }
@@ -328,6 +382,12 @@ export class GameRoom extends DurableObject<Env> {
           joined: true,
           gameId: att.gameId ?? this.gameId ?? undefined,
         } satisfies Attachment);
+        // Bind Clerk identity for the rated-finish POST (token `sub` is set
+        // by Next per-role mints; pre-sub tokens leave prior binding intact).
+        if (payload.sub) {
+          this.clerkIds.set(role, payload.sub);
+          this.persistMeta();
+        }
         this.lastSeen.set(role, Date.now());
         this.disconnectedAt.delete(role);
         if (this.disconnectedAt.size === 0) {
@@ -473,12 +533,20 @@ export class GameRoom extends DurableObject<Env> {
     // stub path keeps working without network.
     const finishUrl = (this.env as Partial<Env>).FINISH_URL;
     if (!finishUrl) return;
+    // The route requires both clerkIds: skip unrated/anonymous games rather
+    // than 400. Identity binds at join from subbed tokens (Next per-role
+    // mint); a missing side means that player never joined with identity.
+    const whiteClerkId = this.clerkIds.get("white");
+    const blackClerkId = this.clerkIds.get("black");
+    if (!this.gameId || !whiteClerkId || !blackClerkId) return;
     try {
-      const body = JSON.stringify({
+      const body = buildFinishBody({
         gameId: this.gameId,
+        whiteClerkId,
+        blackClerkId,
         winner,
         reason,
-        version: this.version,
+        moves: this.history,
       });
       const headers: Record<string, string> = {
         "content-type": "application/json",

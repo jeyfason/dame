@@ -448,3 +448,127 @@ describe("POST /room requires Clerk session (Task 2 RED)", () => {
     expect(res.status).toBe(401);
   });
 });
+
+// --- Stage 4: rated-finish identity (clerkIds from join sub -> finish POST) ---
+
+const FINISH_UUID = "123e4567-e89b-12d3-a456-426614174000";
+
+async function joinBothWithSub(
+  room: GameRoom,
+  whiteSub: string | undefined,
+  blackSub: string | undefined,
+  gameId = FINISH_UUID,
+) {
+  const whiteToken = await mintJoinToken(gameId, "white", SECRET, 3600, whiteSub);
+  const blackToken = await mintJoinToken(gameId, "black", SECRET, 3600, blackSub);
+  const white = makeFakeSocket();
+  const black = makeFakeSocket();
+  const ctxOf = (room as unknown as { ctx: { sockets: FakeSocket[] } }).ctx;
+  ctxOf.sockets.push(white, black);
+  (room as unknown as { gameId: string | null }).gameId = gameId;
+  await room.webSocketMessage(
+    white as unknown as WebSocket,
+    JSON.stringify({ t: "join", token: whiteToken }),
+  );
+  await room.webSocketMessage(
+    black as unknown as WebSocket,
+    JSON.stringify({ t: "join", token: blackToken }),
+  );
+  white.sent.length = 0;
+  black.sent.length = 0;
+  return { white, black };
+}
+
+describe("GameRoom finish identity (Stage 4)", () => {
+  it("join records role->clerkId from token sub", async () => {
+    const { room } = makeRoom();
+    await joinBothWithSub(room, "user_white", "user_black");
+    const ids = (room as unknown as { clerkIds: Map<string, string> }).clerkIds;
+    expect(ids.get("white")).toBe("user_white");
+    expect(ids.get("black")).toBe("user_black");
+  });
+
+  it("finish POST carries white/blackClerkId + moves, no version, HMAC-signed", async () => {
+    const { room } = makeRoom();
+    (room as unknown as { env: unknown }).env = {
+      GAME_TOKEN_SECRET: SECRET,
+      CLERK_JWKS_URL: "https://clerk.test/.well-known/jwks.json",
+      FINISH_URL: "https://next.test/api/games/finish",
+    };
+    let capturedBody: string | null = null;
+    let capturedSig: string | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (req: Request) => {
+        capturedBody = await req.text();
+        capturedSig = req.headers.get("x-worker-signature");
+        return new Response("ok");
+      }),
+    );
+    try {
+      const { white } = await joinBothWithSub(room, "user_white", "user_black");
+      (room as unknown as { gameState: GameState }).gameState = winSetupState();
+      (room as unknown as { version: number }).version = 0;
+      (room as unknown as { history: Move[] }).history = [];
+      await room.webSocketMessage(
+        white as unknown as WebSocket,
+        JSON.stringify({
+          t: "move",
+          move: {
+            from: [5, 2],
+            to: [3, 4],
+            captures: [[4, 3]],
+            promotes: false,
+          },
+          baseVersion: 0,
+        }),
+      );
+      await vi.waitFor(() => expect(capturedBody).not.toBeNull());
+      const body = JSON.parse(String(capturedBody)) as Record<string, unknown>;
+      expect(body.gameId).toBe(FINISH_UUID);
+      expect(body.whiteClerkId).toBe("user_white");
+      expect(body.blackClerkId).toBe("user_black");
+      expect(body.winner).toBe("white");
+      expect(body.moves).toHaveLength(1);
+      expect(body).not.toHaveProperty("version");
+      expect(capturedSig).toMatch(/^[0-9a-f]{64}$/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("finish POST skipped when identity incomplete (no 400 noise)", async () => {
+    const { room } = makeRoom();
+    (room as unknown as { env: unknown }).env = {
+      GAME_TOKEN_SECRET: SECRET,
+      CLERK_JWKS_URL: "https://clerk.test/.well-known/jwks.json",
+      FINISH_URL: "https://next.test/api/games/finish",
+    };
+    const fetchSpy = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", fetchSpy);
+    try {
+      // Pre-sub tokens: no sub claim -> no identity bound.
+      const { white } = await joinBothWithSub(room, undefined, undefined);
+      (room as unknown as { gameState: GameState }).gameState = winSetupState();
+      (room as unknown as { version: number }).version = 0;
+      (room as unknown as { history: Move[] }).history = [];
+      await room.webSocketMessage(
+        white as unknown as WebSocket,
+        JSON.stringify({
+          t: "move",
+          move: {
+            from: [5, 2],
+            to: [3, 4],
+            captures: [[4, 3]],
+            promotes: false,
+          },
+          baseVersion: 0,
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

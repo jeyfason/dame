@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, integer, timestamp, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, integer, timestamp, real, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -37,6 +37,10 @@ export const ratings = pgTable("ratings", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
 });
 
+// NOTE: tables link by raw ids with NO foreign-key constraints, by intent:
+// neon-http has no multi-statement transactions, so the finish route owns
+// idempotency in app code (game PK-conflict + guarded history writes) and
+// must never deadlock on cross-table FK checks during sequential retries.
 export const ratingHistory = pgTable("rating_history", {
   id: uuid("id").defaultRandom().primaryKey(),
   clerkId: text("clerk_id").notNull(),
@@ -44,7 +48,11 @@ export const ratingHistory = pgTable("rating_history", {
   rating: real("rating").notNull(),
   rd: real("rd").notNull(),
   at: timestamp("at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-});
+}, (t) => [
+  // One row per (game, player): makes history writes idempotent so crash
+  // recovery and retried duplicate finishes cannot double-insert.
+  uniqueIndex("rating_history_game_clerk_uniq").on(t.gameId, t.clerkId),
+]);
 
 export const invites = pgTable("invites", {
   code: text("code").primaryKey(),

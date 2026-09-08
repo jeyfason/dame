@@ -14,8 +14,9 @@ const base = process.env.E2E_BASE_URL ?? "http://localhost:3100";
 
 test.skip(!!process.env.SKIP_E2E, "Documented skip: no dev server / worker available.");
 
-function gameId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+// gameId is UUIDv4 everywhere (Next /api/room + worker WS enforce it).
+function gameId(): string {
+  return crypto.randomUUID();
 }
 
 async function joinGame(page: Page, id: string, role: "white" | "black") {
@@ -34,7 +35,7 @@ async function whiteOpeningMove(whitePage: Page) {
 
 test.describe("2-client realtime sync", () => {
   test("P1 move appears on P2 board", async ({ browser }) => {
-    const id = gameId("rt-move");
+    const id = gameId();
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     try {
@@ -62,7 +63,7 @@ test.describe("2-client realtime sync", () => {
   });
 
   test("P1 illegal move toasts and boards unchanged on both", async ({ browser }) => {
-    const id = gameId("rt-illegal");
+    const id = gameId();
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     try {
@@ -92,7 +93,7 @@ test.describe("2-client realtime sync", () => {
   });
 
   test("P2 reload resyncs same position and version", async ({ browser }) => {
-    const id = gameId("rt-reload");
+    const id = gameId();
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     try {
@@ -125,7 +126,7 @@ test.describe("2-client realtime sync", () => {
   });
 
   test("presence shows opponent online on both", async ({ browser }) => {
-    const id = gameId("rt-presence");
+    const id = gameId();
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     try {

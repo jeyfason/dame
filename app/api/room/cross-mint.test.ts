@@ -21,4 +21,13 @@ describe("join token cross-compat (Next mint <-> worker verify)", () => {
     expect(payload.role).toBe("black");
     expect(payload.gameId).toBe("game-cross-1");
   });
+
+  it("sub (Clerk id) round-trips; absent when not minted", async () => {
+    const subbed = await mintNext("game-cross-1", "white", SECRET, 3600, "user_123");
+    expect((await verifyWorker(subbed, SECRET, "game-cross-1")).sub).toBe(
+      "user_123",
+    );
+    const plain = await mintWorker("game-cross-1", "white", SECRET);
+    expect((await verifyWorker(plain, SECRET, "game-cross-1")).sub).toBeUndefined();
+  });
 });

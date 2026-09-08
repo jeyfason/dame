@@ -8,7 +8,7 @@ import type {
   HistoryRow,
   RatingState,
 } from "@/lib/ratings/update";
-import { DEFAULT_RATING, DEFAULT_RD } from "@/lib/ratings/glicko2";
+import { DEFAULT_RATING, DEFAULT_RD, DEFAULT_VOL } from "@/lib/ratings/glicko2";
 
 const SECRET = "test-finish-worker-secret";
 const GAME_ID = "123e4567-e89b-12d3-a456-426614174000";
@@ -49,7 +49,7 @@ class MemoryStore implements FinishStore {
       this.ratings.get(clerkId) ?? {
         rating: DEFAULT_RATING,
         rd: DEFAULT_RD,
-        vol: 0.06,
+        vol: DEFAULT_VOL,
         gamesPlayed: 0,
       }
     );
@@ -58,7 +58,14 @@ class MemoryStore implements FinishStore {
     this.ratings.set(clerkId, r);
   }
   async addHistory(row: HistoryRow): Promise<void> {
-    this.history.push(row);
+    // Idempotent like the Drizzle unique (game, clerk) index.
+    if (
+      !this.history.some(
+        (h) => h.gameId === row.gameId && h.clerkId === row.clerkId,
+      )
+    ) {
+      this.history.push(row);
+    }
   }
   async historyForGame(gameId: string): Promise<HistoryRow[]> {
     return this.history.filter((h) => h.gameId === gameId);
@@ -153,6 +160,45 @@ describe("games/finish", () => {
     expect(store.history.length).toBe(2);
     const json = (await second.json()) as { duplicate: boolean };
     expect(json.duplicate).toBe(true);
+  });
+
+  it("crash between insertGame and history recovers on retry (no zero-delta success)", async () => {
+    const store = new MemoryStore();
+    const body = validBody();
+    // Simulate the crash: game row persisted, ratings/history untouched.
+    const inserted = await store.insertGame({
+      gameId: body.gameId,
+      whiteClerkId: body.whiteClerkId,
+      blackClerkId: body.blackClerkId,
+      winner: "white",
+      reason: body.reason,
+      moves: [],
+    });
+    expect(inserted).toBe(true);
+    const sig = signBody(JSON.stringify(body));
+    const res = await handleFinish(authedRequest(body, sig), deps(store));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      duplicate: boolean;
+      white: { before: RatingState; after: RatingState };
+      black: { before: RatingState; after: RatingState };
+    };
+    expect(json.duplicate).toBe(true);
+    // Recovered: winner up, loser down, history written — not zero deltas.
+    expect(json.white.after.rating).toBeGreaterThan(json.white.before.rating);
+    expect(json.black.after.rating).toBeLessThan(json.black.before.rating);
+    expect(store.history.length).toBe(2);
+    // Next retry: history present → zero-delta duplicate, no double-apply.
+    const again = await handleFinish(authedRequest(body, sig), deps(store));
+    expect(again.status).toBe(200);
+    const j2 = (await again.json()) as {
+      duplicate: boolean;
+      white: { before: RatingState; after: RatingState };
+    };
+    expect(j2.duplicate).toBe(true);
+    expect(j2.white.after.rating).toBe(json.white.after.rating);
+    expect(j2.white.before.rating).toBe(json.white.after.rating);
+    expect(store.history.length).toBe(2);
   });
 
   it("winner rating up, loser down; new-player RD shrinks; deltas returned", async () => {

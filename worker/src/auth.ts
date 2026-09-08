@@ -4,6 +4,8 @@ export interface JoinPayload {
   gameId: string;
   role: Role;
   exp: number;
+  /** Clerk user id bound at mint time (Next /api/room). Absent on pre-sub tokens. */
+  sub?: string;
 }
 
 export interface ClerkClaims {
@@ -58,10 +60,15 @@ export async function mintJoinToken(
   role: Role,
   secret: string,
   ttlSec = 3600,
+  clerkId?: string,
 ): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + ttlSec;
+  const claims: Record<string, unknown> = { gameId, role, exp };
+  // Bind the Clerk identity when the minter knows it (Next per-role mint);
+  // GameRoom records role->clerkId from this claim for the finish POST.
+  if (clerkId) claims.sub = clerkId;
   const payload = bytesToB64Url(
-    new TextEncoder().encode(JSON.stringify({ gameId, role, exp })),
+    new TextEncoder().encode(JSON.stringify(claims)),
   );
   const key = await hmacKey(secret);
   const sig = new Uint8Array(
@@ -114,6 +121,13 @@ export async function verifyJoinToken(
   const p = payload as JoinPayload;
   if (Math.floor(Date.now() / 1000) > p.exp) {
     throw new Error("token expired");
+  }
+  // gameId format (UUIDv4) is enforced at HTTP boundaries (/room, /ws),
+  // not here: the HMAC layer stays format-agnostic.
+  if (p.sub !== undefined) {
+    if (typeof p.sub !== "string" || p.sub.length < 1 || p.sub.length > 128) {
+      throw new Error("bad token claims");
+    }
   }
   if (expectedGameId && p.gameId !== expectedGameId) {
     throw new Error("token game mismatch");

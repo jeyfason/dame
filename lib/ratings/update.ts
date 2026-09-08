@@ -96,7 +96,9 @@ export interface FinishStore {
 
 /**
  * Idempotent persist: same gameId twice → one game row, ratings move once.
- * Duplicate returns the stored game with current ratings as `after`.
+ * Duplicate with full history returns zero deltas; duplicate with missing
+ * history (crash between insertGame and history writes) recomputes and
+ * persists instead of reporting a false zero-delta success.
  */
 export async function persistFinishedGame(
   store: FinishStore,
@@ -154,6 +156,40 @@ async function duplicateResult(
     store.getRating(game.whiteClerkId),
     store.getRating(game.blackClerkId),
   ]);
+  if (histories.length < 2) {
+    // Crash between insertGame and the history writes: the game row exists
+    // but ratings never moved (or only one side wrote). Recompute from
+    // current ratings and persist. Safe to retry: applyGameResult is
+    // deterministic on the same inputs, saveRating upserts the same values,
+    // and history writes are idempotent (unique game+clerk, guarded), so a
+    // retried recovery cannot double-apply. `before` is the best available
+    // (post-crash current), not the true pre-game value.
+    const next = applyGameResult(whiteCurrent, blackCurrent, game.winner);
+    await Promise.all([
+      store.saveRating(game.whiteClerkId, next.white),
+      store.saveRating(game.blackClerkId, next.black),
+    ]);
+    await Promise.all([
+      store.addHistory({
+        clerkId: game.whiteClerkId,
+        gameId: game.gameId,
+        rating: next.white.rating,
+        rd: next.white.rd,
+      }),
+      store.addHistory({
+        clerkId: game.blackClerkId,
+        gameId: game.gameId,
+        rating: next.black.rating,
+        rd: next.black.rd,
+      }),
+    ]);
+    return {
+      game,
+      duplicate: true,
+      white: { before: whiteCurrent, after: next.white },
+      black: { before: blackCurrent, after: next.black },
+    };
+  }
   const afterFor = (clerkId: string, current: RatingState): RatingState => {
     const h = histories.find((r) => r.clerkId === clerkId);
     return h
@@ -162,8 +198,9 @@ async function duplicateResult(
   };
   const whiteAfter = afterFor(game.whiteClerkId, whiteCurrent);
   const blackAfter = afterFor(game.blackClerkId, blackCurrent);
-  // `before` is not stored; report after as before so deltas read zero
-  // rather than fabricating history.
+  // Duplicate with history present: ratings already moved exactly once, so
+  // `before` is deliberately reported as `after` (zero deltas) rather than
+  // re-applying or fabricating history. Never re-apply on this path.
   return {
     game,
     duplicate: true,

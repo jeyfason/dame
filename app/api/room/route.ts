@@ -35,13 +35,15 @@ function isValidRole(v: unknown): v is Role {
   return v === "white" || v === "black";
 }
 
+// Game identity: gameId is a UUIDv4 (crypto.randomUUID) everywhere —
+// room creation mints one, member-join requires one, and the finish route
+// + games/rating_history PKs are uuid columns. Non-UUID ids are rejected
+// here and at the worker WS boundary so finish never 400s on format.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isValidGameId(v: unknown): v is string {
-  return (
-    typeof v === "string" &&
-    v.length >= 1 &&
-    v.length <= 128 &&
-    /^[A-Za-z0-9_-]+$/.test(v)
-  );
+  return typeof v === "string" && UUID_RE.test(v);
 }
 
 export async function mintJoinToken(
@@ -49,9 +51,14 @@ export async function mintJoinToken(
   role: Role,
   secret: string,
   ttlSec = 3600,
+  clerkId?: string,
 ): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + ttlSec;
-  const payloadJson = JSON.stringify({ gameId, role, exp });
+  const claims: Record<string, unknown> = { gameId, role, exp };
+  // Bind the Clerk identity when known; the worker records role->clerkId
+  // from this claim for the rated-finish POST.
+  if (clerkId) claims.sub = clerkId;
+  const payloadJson = JSON.stringify(claims);
   const payload = Buffer.from(payloadJson, "utf8").toString("base64url");
   const key = await crypto.subtle.importKey(
     "raw",
@@ -83,11 +90,11 @@ export async function GET(req: Request) {
   const role = url.searchParams.get("role");
   if (!isValidGameId(gameId) || !isValidRole(role)) {
     return NextResponse.json(
-      { error: "gameId and role=white|black required" },
+      { error: "gameId must be a UUID and role=white|black required" },
       { status: 400 },
     );
   }
-  const token = await mintJoinToken(gameId, role, secret);
+  const token = await mintJoinToken(gameId, role, secret, 3600, userId);
   return NextResponse.json({ gameId, role, token, wsUrl: wsPublicUrl() });
 }
 
@@ -112,7 +119,7 @@ export async function POST(req: Request) {
   }
   const b = (body ?? {}) as Record<string, unknown>;
   if (isValidGameId(b.gameId) && isValidRole(b.role)) {
-    const token = await mintJoinToken(b.gameId, b.role, secret);
+    const token = await mintJoinToken(b.gameId, b.role, secret, 3600, userId);
     return NextResponse.json({
       gameId: b.gameId,
       role: b.role,
@@ -122,11 +129,14 @@ export async function POST(req: Request) {
   }
   if (b.gameId !== undefined || b.role !== undefined) {
     return NextResponse.json(
-      { error: "gameId and role=white|black required together" },
+      { error: "gameId must be a UUID and role=white|black required together" },
       { status: 400 },
     );
   }
   const gameId = crypto.randomUUID();
+  // New-game pair minted without sub: the opponent is unknown yet. Each
+  // player re-mints their own role token via GET (sub-bound), which is the
+  // flow the play page uses — the worker learns identities at join time.
   const [white, black] = await Promise.all([
     mintJoinToken(gameId, "white", secret),
     mintJoinToken(gameId, "black", secret),

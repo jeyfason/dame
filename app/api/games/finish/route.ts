@@ -23,7 +23,9 @@ import {
 // so persist is sequential statements with PK-conflict idempotency: a
 // duplicate gameId insert (SQLSTATE 23505) is treated as a retry, never an
 // error. A crash between statements can leave a game without rating rows;
-// the duplicate path backfills the response from stored history.
+// the duplicate path then recomputes applyGameResult from current ratings
+// and persists (history writes are idempotent via the unique game+clerk
+// index) instead of reporting a false zero-delta success.
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -154,12 +156,19 @@ export function drizzleStore(database: typeof db): FinishStore {
         });
     },
     async addHistory(row) {
-      await database.insert(ratingHistory).values({
-        clerkId: row.clerkId,
-        gameId: row.gameId,
-        rating: row.rating,
-        rd: row.rd,
-      });
+      // Idempotent: crash recovery and retried duplicates re-issue the same
+      // (game, player) row; the unique index turns replays into no-ops.
+      await database
+        .insert(ratingHistory)
+        .values({
+          clerkId: row.clerkId,
+          gameId: row.gameId,
+          rating: row.rating,
+          rd: row.rd,
+        })
+        .onConflictDoNothing({
+          target: [ratingHistory.gameId, ratingHistory.clerkId],
+        });
     },
     async historyForGame(gameId) {
       const rows = await database
@@ -176,7 +185,11 @@ export function drizzleStore(database: typeof db): FinishStore {
   };
 }
 
-function parseFinishBody(body: unknown):
+// Body is allowlisted: only the GameInput fields below are read. Unknown
+// fields (e.g. the worker's legacy internal `version`) are dropped, never
+// rejected — the worker->route contract test locks the exact worker body.
+/** Exported for the worker->route contract test (broadcastEnd body must parse). */
+export function parseFinishBody(body: unknown):
   | { ok: true; input: GameInput }
   | { ok: false; error: string } {
   const b = (body ?? {}) as Record<string, unknown>;

@@ -18,6 +18,12 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+// Game identity: gameId is a UUIDv4 (crypto.randomUUID). Creation mints one
+// below; member-join (WS path + Next /api/room) requires one, matching the
+// finish route's uuid validation and the DB uuid PKs.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -46,6 +52,9 @@ export default {
         return json({ error: "server misconfigured" }, 500);
       }
       const gameId = crypto.randomUUID();
+      // Pair minted without sub (only the requester is authenticated; the
+      // opponent is unknown). Players bind identity via Next /api/room
+      // per-role tokens; the room records role->clerkId at WS join.
       const white = await mintJoinToken(gameId, "white" satisfies Role, env.GAME_TOKEN_SECRET);
       const black = await mintJoinToken(gameId, "black" satisfies Role, env.GAME_TOKEN_SECRET);
       return json({ gameId, tokens: { white, black } });
@@ -54,6 +63,15 @@ export default {
     const wsMatch = url.pathname.match(/^\/room\/([^/]+)\/ws$/);
     if (wsMatch && request.method === "GET") {
       const gameId = wsMatch[1] as string;
+      let id = "";
+      try {
+        id = decodeURIComponent(gameId);
+      } catch {
+        return json({ error: "gameId must be a UUID" }, 400);
+      }
+      if (!UUID_RE.test(id)) {
+        return json({ error: "gameId must be a UUID" }, 400);
+      }
       if (request.headers.get("Upgrade") !== "websocket") {
         return new Response("expected websocket", { status: 426 });
       }
