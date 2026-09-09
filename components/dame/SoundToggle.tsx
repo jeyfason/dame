@@ -1,14 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { isSoundEnabled, setSoundEnabled } from "@/lib/sound";
 
 export function SoundToggle() {
-  const [on, setOn] = useState<boolean>(true);
-
-  useEffect(() => {
-    setOn(isSoundEnabled());
-  }, []);
+  const [on, setOn] = useState<boolean>(() => isSoundEnabled());
 
   const toggle = useCallback(() => {
     setOn((prev) => {

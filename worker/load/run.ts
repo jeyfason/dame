@@ -113,7 +113,7 @@ function decideMove(
 class Ws {
   private ws: WebSocket;
   private queue: string[] = [];
-  private waiters: Array<{ res: (msg: string) => void; rej: (e: Error) => void; t: Timer }> = [];
+  private waiters: Array<{ res: (msg: string) => void; rej: (e: Error) => void; t: ReturnType<typeof setTimeout> }> = [];
   private opened: Promise<void>;
   private failAll: ((e: Error) => void) | null = null;
 

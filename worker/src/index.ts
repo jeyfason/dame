@@ -24,7 +24,7 @@ function json(data: unknown, status = 200): Response {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default {
+const worker = {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
 
@@ -86,3 +86,5 @@ export default {
     return json({ error: "not found" }, 404);
   },
 };
+
+export default worker;
