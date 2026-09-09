@@ -232,7 +232,7 @@ describe("GameRoom chat (Stage 5 Task 1 RED)", () => {
       white as unknown as WebSocket,
       JSON.stringify({ t: "typing", on: true }),
     );
-    let t = black.sent.map((s) => JSON.parse(s)).find((f) => f.t === "typing");
+    const t = black.sent.map((s) => JSON.parse(s)).find((f) => f.t === "typing");
     expect(t).toBeDefined();
     expect(t.from).toBe("white");
     expect(t.on).toBe(true);
