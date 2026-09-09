@@ -11,10 +11,10 @@ function devGate(): Response | null {
   return null;
 }
 
-export function renderPreview(
+export async function renderPreview(
   template: unknown,
   props: Record<string, unknown> = {},
-): string | null {
+): Promise<string | null> {
   if (template === "invite") {
     return renderInviteHtml(
       props as Partial<Parameters<typeof renderInviteHtml>[0]>,
@@ -54,12 +54,12 @@ export async function POST(req: Request) {
     body.props && typeof body.props === "object"
       ? (body.props as Record<string, unknown>)
       : {};
-  return htmlResponse(renderPreview(body.template, props));
+  return htmlResponse(await renderPreview(body.template, props));
 }
 
 export async function GET(req: Request) {
   const gated = devGate();
   if (gated) return gated;
   const template = new URL(req.url).searchParams.get("template");
-  return htmlResponse(renderPreview(template));
+  return htmlResponse(await renderPreview(template));
 }

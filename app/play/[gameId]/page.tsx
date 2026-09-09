@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { legalMoves } from "@/lib/rules/international";
 import { useGameRoom, type Role } from "@/hooks/useGameRoom";
 import { ChatPanel } from "@/components/dame/ChatPanel";
+import { VoiceBar } from "@/components/dame/VoiceBar";
 import { Toaster } from "@/components/ui/sonner";
 
 function isRole(v: string | null): v is Role {
@@ -317,13 +318,16 @@ function OnlineBoard({
             );
           })}
         </div>
-        <ChatPanel
-          messages={messages}
-          you={you}
-          opponentTyping={opponentTyping}
-          onSend={sendChat}
-          onTyping={sendTyping}
-        />
+        <div className="grid content-start gap-4">
+          <ChatPanel
+            messages={messages}
+            you={you}
+            opponentTyping={opponentTyping}
+            onSend={sendChat}
+            onTyping={sendTyping}
+          />
+          <VoiceBar enabled={false} />
+        </div>
       </div>
       <Toaster />
     </div>
