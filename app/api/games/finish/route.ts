@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { games, ratings, ratingHistory } from "@/lib/db/schema";
+import { sendResultEmail } from "@/lib/email/send";
 import {
   persistFinishedGame,
   type FinishStore,
@@ -273,6 +274,28 @@ export async function handleFinish(
   }
 
   const result = await persistFinishedGame(deps.store, parsed.input);
+  // Best-effort result email (never throws, never blocks the response).
+  // Recipient addresses are optional caller-supplied fields; duplicates
+  // (retries) never resend.
+  if (!result.duplicate) {
+    const fields = (body ?? {}) as Record<string, unknown>;
+    const origin = new URL(req.url).origin;
+    const rematchUrl = `${origin}/play/join`;
+    for (const to of [fields.whiteEmail, fields.blackEmail]) {
+      if (typeof to === "string" && to.includes("@")) {
+        void sendResultEmail({
+          to,
+          gameId: result.game.gameId,
+          winner: result.game.winner,
+          whiteName: parsed.input.whiteClerkId,
+          blackName: parsed.input.blackClerkId,
+          whiteDelta: result.white.after.rating - result.white.before.rating,
+          blackDelta: result.black.after.rating - result.black.before.rating,
+          rematchUrl,
+        });
+      }
+    }
+  }
   return NextResponse.json({
     ok: true,
     gameId: result.game.gameId,

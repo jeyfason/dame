@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { invites } from "@/lib/db/schema";
+import { sendInviteEmail } from "@/lib/email/send";
 import {
   mintInviteRecord,
   normalizeCode,
@@ -95,8 +96,9 @@ export function drizzleInviteStore(database: typeof db): InviteStore {
 
 /** POST {} → mint { code, gameId, expiresAt }. Clerk-only. */
 export async function handleMintInvite(
-  _req: Request,
+  req: Request,
   deps: InviteDeps,
+  opts?: { email?: unknown; hostName?: unknown },
 ): Promise<Response> {
   const userId = await deps.clerkAuth();
   if (!userId) {
@@ -112,6 +114,7 @@ export async function handleMintInvite(
       if (isUniqueViolation(e) && attempt === 0) continue;
       throw e;
     }
+    notifyInvite(req, record, opts);
     return NextResponse.json({
       code: record.code,
       gameId: record.gameId,
@@ -119,6 +122,26 @@ export async function handleMintInvite(
     });
   }
   return NextResponse.json({ error: "try again" }, { status: 503 });
+}
+
+function asEmail(v: unknown): string | undefined {
+  return typeof v === "string" && v.includes("@") ? v : undefined;
+}
+
+function asHostName(v: unknown): string {
+  return typeof v === "string" && v.trim() ? v.trim().slice(0, 80) : "Your opponent";
+}
+
+/** Best-effort invite email: never throws, never blocks the mint response. */
+function notifyInvite(req: Request, record: InviteRecord, opts?: { email?: unknown; hostName?: unknown }) {
+  const to = asEmail(opts?.email);
+  const inviteUrl = `${new URL(req.url).origin}/play/join?code=${record.code}`;
+  void sendInviteEmail({
+    to,
+    hostName: asHostName(opts?.hostName),
+    code: record.code,
+    inviteUrl,
+  });
 }
 
 /** Consume one code → { code, gameId }. 404 unknown, 410 expired, 409 used. */
@@ -230,11 +253,14 @@ export async function POST(req: Request) {
   }
   // The body stream is consumed above, so re-dispatch on the parsed value
   // instead of re-reading the request.
-  const code = (body as Record<string, unknown> | null)?.code;
-  if (code !== undefined) {
-    return redeemCode(code, deps);
+  const fields = (body as Record<string, unknown> | null) ?? {};
+  if (fields.code !== undefined) {
+    return redeemCode(fields.code, deps);
   }
-  return handleMintInvite(req, deps);
+  return handleMintInvite(req, deps, {
+    email: fields.email,
+    hostName: fields.hostName,
+  });
 }
 
 /** GET ?code= → read-only lookup (never consumes; POST redeems). */
