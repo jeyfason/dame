@@ -61,3 +61,27 @@ export const invites = pgTable("invites", {
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
 });
+
+// Stage 5 social: friendships + presence. No FK constraints by intent (see
+// note above): neon-http has no multi-statement transactions, so routes own
+// idempotency in app code and must never deadlock on cross-table FK checks.
+// Pair uniqueness is (requester, addressee) ordered; the friends route
+// rejects reverse duplicates in app code (second request → 409) so the
+// unordered pair stays unique without an expression index.
+export const friendships = pgTable("friendships", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  requesterClerkId: text("requester_clerk_id").notNull(),
+  addresseeClerkId: text("addressee_clerk_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("friendships_pair_uniq").on(t.requesterClerkId, t.addresseeClerkId),
+]);
+
+// Heartbeat table: one row per Clerk user, upserted on room join/move
+// (and POST /api/presence). Online = last_seen within the last 5 minutes.
+export const presence = pgTable("presence", {
+  clerkId: text("clerk_id").primaryKey(),
+  lastSeen: timestamp("last_seen", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+});

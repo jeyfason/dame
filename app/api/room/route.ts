@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { db } from "@/lib/db/client";
+import { presence } from "@/lib/db/schema";
 
 type Role = "white" | "black";
 
@@ -29,6 +31,26 @@ function getSecret(): string | null {
 
 function wsPublicUrl(): string {
   return process.env.NEXT_PUBLIC_ROOM_WS_URL ?? "ws://localhost:8787";
+}
+
+// Stage 5 presence heartbeat: record last_seen on every authenticated room
+// join (token mint). Best-effort and never blocks the join: skipped without
+// DATABASE_URL (tests/local), failures swallowed so a presence outage never
+// breaks play. GET /api/friends derives online from last_seen < 5min.
+async function touchPresenceBestEffort(clerkId: string): Promise<void> {
+  if (!process.env.DATABASE_URL) return;
+  try {
+    const now = new Date();
+    await db
+      .insert(presence)
+      .values({ clerkId, lastSeen: now })
+      .onConflictDoUpdate({
+        target: presence.clerkId,
+        set: { lastSeen: now },
+      });
+  } catch {
+    // best-effort only
+  }
 }
 
 function isValidRole(v: unknown): v is Role {
@@ -94,6 +116,7 @@ export async function GET(req: Request) {
       { status: 400 },
     );
   }
+  await touchPresenceBestEffort(userId);
   const token = await mintJoinToken(gameId, role, secret, 3600, userId);
   return NextResponse.json({ gameId, role, token, wsUrl: wsPublicUrl() });
 }
@@ -119,6 +142,7 @@ export async function POST(req: Request) {
   }
   const b = (body ?? {}) as Record<string, unknown>;
   if (isValidGameId(b.gameId) && isValidRole(b.role)) {
+    await touchPresenceBestEffort(userId);
     const token = await mintJoinToken(b.gameId, b.role, secret, 3600, userId);
     return NextResponse.json({
       gameId: b.gameId,
@@ -134,6 +158,7 @@ export async function POST(req: Request) {
     );
   }
   const gameId = crypto.randomUUID();
+  await touchPresenceBestEffort(userId);
   // New-game pair minted without sub: the opponent is unknown yet. Each
   // player re-mints their own role token via GET (sub-bound), which is the
   // flow the play page uses — the worker learns identities at join time.

@@ -3,6 +3,7 @@ import { asc, desc, eq, or } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { games, ratingHistory, ratings, users } from "@/lib/db/schema";
 import { DEFAULT_RATING, DEFAULT_RD } from "@/lib/ratings/glicko2";
+import { FriendButton } from "@/components/dame/FriendButton";
 
 function resultFor(
   player: string,
@@ -109,6 +110,9 @@ export default async function Profile({ params }: { params: Promise<{ id: string
         </div>
       </div>
       <p className="opacity-70">{row.bio ?? "No bio yet."}</p>
+      <div>
+        <FriendButton userId={id} />
+      </div>
 
       <section
         aria-label="Rating"

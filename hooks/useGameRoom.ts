@@ -52,6 +52,18 @@ function backoffMs(attempt: number): number {
   return Math.min(8000, 500 * 2 ** attempt);
 }
 
+// Stage 5 presence heartbeat: POST /api/presence on room join + move so
+// GET /api/friends can derive online (last_seen < 5min). Best-effort and
+// fail-silent: a presence outage must never break play or toast.
+function heartbeatPresence(): void {
+  try {
+    if (typeof fetch === "undefined") return;
+    void fetch("/api/presence", { method: "POST" }).catch(() => {});
+  } catch {
+    // best-effort only
+  }
+}
+
 export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
   const { gameId, token, wsUrl, wsFactory, reconnect = true } = options;
   const [state, setState] = useState<GameState | null>(null);
@@ -128,6 +140,7 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
         } catch {
           // send failure surfaces via onclose/onerror below
         }
+        heartbeatPresence();
       };
 
       ws.onmessage = (ev: MessageEvent) => {
@@ -239,6 +252,7 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
     } catch {
       toast.error("Connection lost — retrying");
     }
+    heartbeatPresence();
   }, []);
 
   const sendChat = useCallback((text: string) => {
