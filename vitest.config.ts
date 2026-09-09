@@ -9,6 +9,6 @@ export default defineConfig({
   },
   test: {
     // Playwright specs run under `bun x playwright test`, not vitest.
-    exclude: ["tests/*.spec.ts", "node_modules/**"],
+    exclude: ["tests/*.spec.ts", "**/node_modules/**", "worker/**"],
   },
 });
