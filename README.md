@@ -75,3 +75,25 @@ Generate the secret with `openssl rand -hex 32`. Deploy secrets with
   `GET /room/<gameId>/ws` upgrades. Game end POSTs `{ gameId, winner, reason,
   version }` to `FINISH_URL` when set (else no-op); Next stub
   `POST /api/games/finish` logs + returns 200 (Stage 4 persists).
+
+## Launch checklist (Stage 6 Task 4)
+
+- [ ] Env: copy `worker/.dev.vars.example` → `worker/.dev.vars`
+  (git-ignored); set `GAME_TOKEN_SECRET` (`openssl rand -hex 32`),
+  `CLERK_JWKS_URL`, `NEXT_PUBLIC_ROOM_WS_URL`; web `.env.local` needs
+  `DATABASE_URL`, Clerk keys, `NEXT_PUBLIC_SENTRY_DSN`.
+- [ ] Migrate: `bun x drizzle-kit push` (applies `drizzle/*.sql`:
+  ratings, history-unique, social, friendships-unordered).
+- [ ] Flag seed: insert `feature_flags` rows (`voice` off by default;
+  `getFlag` fails closed when `DATABASE_URL` is unset).
+- [ ] Secrets: `wrangler secret put GAME_TOKEN_SECRET` (+ `CLERK_JWKS_URL`
+  as a var); never commit `.dev.vars` or real values.
+- [ ] Deploy worker: `bun x wrangler deploy --config worker/wrangler.toml`;
+  smoke `GET /health` + one WS join/move on the deployed URL.
+- [ ] Deploy web: `bun run build` green, then deploy; smoke `/api/status`
+  (db + worker pings) and `/status` page.
+- [ ] Sentry confirm: hit `/api/sentry-test` (dev-gated) and verify the
+  event + release appears in the Sentry dashboard.
+- [ ] Load: `bun worker/load/run.ts` passes p95 <150ms vs staging
+  (local burst p95 ~331ms under workerd emulation — see
+  `worker/load/report.md`; re-prove against staging before launch).
