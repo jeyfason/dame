@@ -99,7 +99,7 @@ export function ChatPanel({
           ev.preventDefault();
           submit();
         }}
-        className="flex gap-2"
+        className="flex min-w-0 gap-2"
       >
         <label htmlFor="dame-chat-input" className="sr-only">
           Chat message
@@ -115,7 +115,7 @@ export function ChatPanel({
             pokeTyping();
           }}
           placeholder="Message (max 500)…"
-          className="min-h-[44px] flex-1 rounded-[var(--dame-radius)] border border-white/20 bg-transparent px-4 py-2 text-sm outline-none"
+          className="min-h-[44px] min-w-0 flex-1 rounded-[var(--dame-radius)] border border-white/20 bg-transparent px-4 py-2 text-sm outline-none"
         />
         <button
           type="submit"

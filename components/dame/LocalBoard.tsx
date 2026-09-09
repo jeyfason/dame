@@ -11,6 +11,7 @@ import { playCapture, playMove, playWin } from "@/lib/sound";
 export function LocalBoard() {
   const [state, setState] = useState<GameState>(() => initialBoard());
   const [selected, setSelected] = useState<[number, number] | null>(null);
+  const [announcement, setAnnouncement] = useState<string>("White to move");
 
   const moves = useMemo(() => legalMoves(state), [state]);
   const selectedMoves = useMemo(
@@ -28,6 +29,7 @@ export function LocalBoard() {
   function reset() {
     setState(initialBoard());
     setSelected(null);
+    setAnnouncement("White to move");
   }
 
   function handleSquare(r: number, c: number) {
@@ -38,6 +40,15 @@ export function LocalBoard() {
         const next = applyMove(state, dest);
         setState(next);
         setSelected(null);
+        const mover = state.turn === "white" ? "White" : "Black";
+        const after = next.winner
+          ? `${next.winner === "white" ? "White" : "Black"} wins`
+          : `${next.turn === "white" ? "White" : "Black"} to move`;
+        const capture =
+          dest.captures.length > 0 ? ` capturing ${dest.captures.length}` : "";
+        setAnnouncement(
+          `${mover} moved from row ${dest.from[0]} column ${dest.from[1]} to row ${dest.to[0]} column ${dest.to[1]}${capture} — ${after}`,
+        );
         if (next.winner) playWin();
         else if (dest.captures.length > 0) playCapture();
         else playMove();
@@ -54,6 +65,8 @@ export function LocalBoard() {
         toast.error("Illegal move — that piece has no legal moves");
       } else {
         setSelected([r, c]);
+        const name = state.turn === "white" ? "White" : "Black";
+        setAnnouncement(`${name} ${piece.kind} selected at row ${r} column ${c}`);
       }
       return;
     }
@@ -63,7 +76,7 @@ export function LocalBoard() {
   const turnName = state.turn === "white" ? "White" : "Black";
 
   return (
-    <div className="grid gap-4">
+    <div className="grid w-full min-w-0 gap-4">
       <p data-testid="turn-label" className="text-sm font-semibold">
         {state.winner ? `${state.winner === "white" ? "White" : "Black"} wins` : `${turnName} to move`}
       </p>
@@ -73,6 +86,7 @@ export function LocalBoard() {
         destIds={destIds}
         onSquare={handleSquare}
         boardLabel="Local 2-player checkers board"
+        announcement={announcement}
       />
       <div className="flex flex-wrap gap-3">
         <button

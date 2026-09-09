@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { initialBoard } from "@/lib/rules/international";
 import { AnimatedBoard, ANIMATION_DURATION_MS } from "./AnimatedBoard";
 
@@ -52,7 +52,7 @@ describe("AnimatedBoard", () => {
 
   it("shows winner banner via AnimatePresence surface", () => {
     const state = { ...initialBoard(), winner: "white" as const };
-    render(
+    const { unmount } = render(
       <AnimatedBoard
         state={state}
         selected={null}
@@ -61,5 +61,67 @@ describe("AnimatedBoard", () => {
       />,
     );
     expect(screen.getByTestId("winner-banner")).toBeTruthy();
+    unmount();
+  });
+});
+
+describe("AnimatedBoard a11y", () => {
+  it("labels squares with color, kind and coordinates", () => {
+    const state = initialBoard();
+    const { unmount } = render(
+      <AnimatedBoard
+        state={state}
+        selected={null}
+        destIds={new Set<string>(["5,2"])}
+        onSquare={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("square-6-1").getAttribute("aria-label")).toMatch(
+      /white.*man.*row 6.*column 1/i,
+    );
+    expect(screen.getByTestId("square-3-0").getAttribute("aria-label")).toMatch(
+      /black.*man.*row 3.*column 0/i,
+    );
+    expect(screen.getByTestId("square-5-2").getAttribute("aria-label")).toMatch(
+      /empty.*row 5.*column 2.*destination/i,
+    );
+    unmount();
+  });
+
+  it("announces moves through a polite live region", () => {
+    const state = initialBoard();
+    const { unmount } = render(
+      <AnimatedBoard
+        state={state}
+        selected={null}
+        destIds={new Set<string>()}
+        onSquare={() => {}}
+        announcement="White moved from row 6 column 1 to row 5 column 2"
+      />,
+    );
+    const live = screen.getByTestId("move-announcement");
+    expect(live.getAttribute("aria-live")).toBe("polite");
+    expect(live.textContent).toContain("White moved from row 6 column 1");
+    unmount();
+  });
+
+  it("arrow keys move focus between squares", () => {
+    const state = initialBoard();
+    const { container, unmount } = render(
+      <AnimatedBoard
+        state={state}
+        selected={null}
+        destIds={new Set<string>()}
+        onSquare={() => {}}
+      />,
+    );
+    const q = (id: string) =>
+      container.querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    q("square-6-1").focus();
+    fireEvent.keyDown(q("square-6-1"), { key: "ArrowRight" });
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("square-6-2");
+    fireEvent.keyDown(q("square-6-2"), { key: "ArrowDown" });
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("square-7-2");
+    unmount();
   });
 });

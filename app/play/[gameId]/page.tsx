@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { legalMoves } from "@/lib/rules/international";
+import { legalMoves, applyMove } from "@/lib/rules/international";
 import { playCapture, playMove, playWin } from "@/lib/sound";
 import { useGameRoom, type Role } from "@/hooks/useGameRoom";
 import { AnimatedBoard } from "@/components/dame/AnimatedBoard";
@@ -122,6 +122,16 @@ function OnlineBoard({
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const router = useRouter();
   const [rematching, setRematching] = useState(false);
+  // Screen-reader move announcements. Own-move descriptions surface once
+  // the authoritative version confirms them (version === atVersion + 1);
+  // any other state (incl. remote moves) falls back to the turn label so
+  // every turn change is announced. Selection text shows until the next
+  // interaction. All hooks stay above the early return (Rules of Hooks).
+  const [announceMove, setAnnounceMove] = useState<{
+    text: string;
+    atVersion: number;
+  } | null>(null);
+  const [announceSelect, setAnnounceSelect] = useState<string | null>(null);
 
   // Rematch: fresh gameId, roles swapped (host takes the other color).
   async function rematch() {
@@ -174,6 +184,14 @@ function OnlineBoard({
     [selectedMoves],
   );
 
+  // Winner + fanfare BEFORE the early return: hook order must be identical
+  // on every render (previously useEffect sat below `if (!state)`, crashing
+  // with "Rendered more hooks" as soon as the first state arrived).
+  const winner = end?.winner ?? state?.winner ?? null;
+  useEffect(() => {
+    if (winner) playWin();
+  }, [winner]);
+
   if (!state) {
     return (
       <div className="grid gap-6 py-8">
@@ -192,10 +210,27 @@ function OnlineBoard({
     if (you && you !== state.turn) {
       toast.error("Not your turn");
       setSelected(null);
+      setAnnounceSelect(null);
       return;
     }
     const dest = selectedMoves.find((m) => m.to[0] === r && m.to[1] === c);
     if (activeSelected && dest) {
+      try {
+        const next = applyMove(state, dest);
+        const mover = state.turn === "white" ? "White" : "Black";
+        const after = next.winner
+          ? `${next.winner === "white" ? "White" : "Black"} wins`
+          : `${next.turn === "white" ? "White" : "Black"} to move`;
+        const capture =
+          dest.captures.length > 0 ? ` capturing ${dest.captures.length}` : "";
+        setAnnounceSelect(null);
+        setAnnounceMove({
+          text: `${mover} moved from row ${dest.from[0]} column ${dest.from[1]} to row ${dest.to[0]} column ${dest.to[1]}${capture} — ${after}`,
+          atVersion: version,
+        });
+      } catch {
+        // Optimistic sendMove toasts below; keep the previous announcement.
+      }
       sendMove(dest);
       setSelected(null);
       if (dest.captures.length > 0) playCapture();
@@ -207,9 +242,13 @@ function OnlineBoard({
       const pieceMoves = moves.filter((m) => m.from[0] === r && m.from[1] === c);
       if (pieceMoves.length === 0) {
         setSelected(null);
+        setAnnounceSelect(null);
         toast.error("Illegal move — that piece has no legal moves");
       } else {
         setSelected([r, c]);
+        setAnnounceMove(null);
+        const name = state.turn === "white" ? "White" : "Black";
+        setAnnounceSelect(`${name} ${piece.kind} selected at row ${r} column ${c}`);
       }
       return;
     }
@@ -217,14 +256,14 @@ function OnlineBoard({
   }
 
   const turnName = state.turn === "white" ? "White" : "Black";
-  const winner = end?.winner ?? state.winner;
   const roleLabel = you ?? initialRole;
   const roleName = roleLabel === "white" ? "White" : "Black";
 
-  // Win fanfare on authoritative end (local + remote moves).
-  useEffect(() => {
-    if (winner) playWin();
-  }, [winner]);
+  const turnFallback = winner ? `${winner === "white" ? "White" : "Black"} wins` : `${turnName} to move`;
+  const announcement =
+    !winner && announceMove && version === announceMove.atVersion + 1
+      ? announceMove.text
+      : (!winner && announceSelect) || turnFallback;
 
   return (
     <div className="grid gap-4 py-8">
@@ -269,8 +308,8 @@ function OnlineBoard({
           </div>
         </div>
       ) : null}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,560px)_320px] lg:items-start">
-        <div className="grid gap-4">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,560px)_320px] lg:items-start">
+        <div className="grid min-w-0 gap-4">
           <AnimatedBoard
             state={state}
             selected={activeSelected}
@@ -278,12 +317,13 @@ function OnlineBoard({
             onSquare={handleSquare}
             boardLabel="Online checkers board"
             showWinnerBanner={false}
+            announcement={announcement}
           />
           <div className="flex flex-wrap gap-3">
             <SoundToggle />
           </div>
         </div>
-        <div className="grid content-start gap-4">
+        <div className="grid min-w-0 content-start gap-4">
           <ChatPanel
             messages={messages}
             you={you}
