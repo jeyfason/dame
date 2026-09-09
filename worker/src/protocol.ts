@@ -2,6 +2,10 @@ import type { GameState, Move } from "../../lib/rules/types";
 
 export const FRAME_LIMIT = 1_048_576; // 1MB frame cap per spec
 export const PROTOCOL_VERSION = 0;
+export const CHAT_MAX_LEN = 500;
+export const CHAT_HISTORY_LIMIT = 50;
+export const CHAT_RATE_LIMIT_MS = 1000;
+export const TYPING_TIMEOUT_MS = 5000;
 
 export type Role = "white" | "black";
 
@@ -18,7 +22,17 @@ export interface MoveFrame {
   baseVersion: number;
 }
 
-export type ClientFrame = JoinFrame | MoveFrame;
+export interface ChatSendFrame {
+  t: "chat";
+  text: string;
+}
+
+export interface TypingSendFrame {
+  t: "typing";
+  on: boolean;
+}
+
+export type ClientFrame = JoinFrame | MoveFrame | ChatSendFrame | TypingSendFrame;
 
 // Server -> client
 export interface StateFrame {
@@ -46,11 +60,26 @@ export interface EndFrame {
   reason: string;
 }
 
+export interface ChatFrame {
+  t: "chat";
+  from: Role;
+  text: string;
+  at: number;
+}
+
+export interface TypingFrame {
+  t: "typing";
+  from: Role;
+  on: boolean;
+}
+
 export type ServerFrame =
   | StateFrame
   | PresenceFrame
   | RejectFrame
-  | EndFrame;
+  | EndFrame
+  | ChatFrame
+  | TypingFrame;
 
 export class ProtocolError extends Error {
   readonly closeCode: number;
@@ -104,6 +133,18 @@ export function parseClientFrame(raw: string | ArrayBuffer): ClientFrame {
       throw new ProtocolError("malformed move: bad baseVersion", 1003);
     }
     return { t: "move", move: data.move as unknown as Move, baseVersion: data.baseVersion };
+  }
+  if (data.t === "chat") {
+    if (typeof data.text !== "string" || data.text.length === 0) {
+      throw new ProtocolError("malformed chat: missing text", 1003);
+    }
+    return { t: "chat", text: data.text };
+  }
+  if (data.t === "typing") {
+    if (typeof data.on !== "boolean") {
+      throw new ProtocolError("malformed typing: missing on", 1003);
+    }
+    return { t: "typing", on: data.on };
   }
   throw new ProtocolError(`unknown frame type: ${data.t}`, 1003);
 }

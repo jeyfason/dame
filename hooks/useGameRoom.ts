@@ -12,6 +12,12 @@ export interface EndInfo {
   reason: string;
 }
 
+export interface ChatMessage {
+  from: Role;
+  text: string;
+  at: number;
+}
+
 export interface UseGameRoomOptions {
   gameId: string;
   token: string;
@@ -29,6 +35,10 @@ export interface UseGameRoomResult {
   opponentConnected: boolean;
   end: EndInfo | null;
   sendMove: (move: Move) => void;
+  messages: ChatMessage[];
+  opponentTyping: boolean;
+  sendChat: (text: string) => void;
+  sendTyping: (on: boolean) => void;
 }
 
 function resolveWsBase(explicit?: string): string {
@@ -50,12 +60,15 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
   const [you, setYou] = useState<Role | null>(null);
   const [opponentConnected, setOpponentConnected] = useState(false);
   const [end, setEnd] = useState<EndInfo | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [opponentTyping, setOpponentTyping] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const versionRef = useRef(0);
   const stateRef = useRef<GameState | null>(null);
   const attemptRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mirror latest state into refs for event handlers (effect, not render).
   useEffect(() => {
@@ -96,6 +109,13 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
         return;
       }
       wsRef.current = ws;
+
+      function clearTypingTimer() {
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+      }
 
       ws.onopen = () => {
         if (closed) return;
@@ -147,6 +167,31 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
             winner: (frame.winner as EndInfo["winner"]) ?? null,
             reason: typeof frame.reason === "string" ? frame.reason : "win",
           });
+          return;
+        }
+        if (frame.t === "chat") {
+          const from = frame.from as Role;
+          const text = frame.text as string;
+          const at = frame.at as number;
+          if ((from === "white" || from === "black") && typeof text === "string") {
+            setMessages((prev) =>
+              [...prev, { from, text, at: typeof at === "number" ? at : Date.now() }].slice(-100),
+            );
+          }
+          return;
+        }
+        if (frame.t === "typing") {
+          const on = Boolean(frame.on);
+          if (on) {
+            setOpponentTyping(true);
+            clearTypingTimer();
+            typingTimeoutRef.current = setTimeout(() => {
+              if (!closed) setOpponentTyping(false);
+            }, 3000);
+          } else {
+            clearTypingTimer();
+            setOpponentTyping(false);
+          }
         }
       };
 
@@ -163,6 +208,7 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
     return () => {
       closed = true;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       try {
         wsRef.current?.close();
       } catch {
@@ -195,5 +241,35 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
     }
   }, []);
 
-  return { state, version, connected, you, opponentConnected, end, sendMove };
+  const sendChat = useCallback((text: string) => {
+    const trimmed = text.trim().slice(0, 500);
+    if (!trimmed) return;
+    try {
+      wsRef.current?.send(JSON.stringify({ t: "chat", text: trimmed }));
+    } catch {
+      toast.error("Connection lost — retrying");
+    }
+  }, []);
+
+  const sendTyping = useCallback((on: boolean) => {
+    try {
+      wsRef.current?.send(JSON.stringify({ t: "typing", on }));
+    } catch {
+      // typing is best-effort, no toast
+    }
+  }, []);
+
+  return {
+    state,
+    version,
+    connected,
+    you,
+    opponentConnected,
+    end,
+    sendMove,
+    messages,
+    opponentTyping,
+    sendChat,
+    sendTyping,
+  };
 }

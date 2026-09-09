@@ -8,6 +8,10 @@ import type { GameState, Move } from "../../lib/rules/types";
 import { verifyJoinToken } from "./auth";
 import { buildFinishBody } from "../../lib/finish/body";
 import {
+  CHAT_HISTORY_LIMIT,
+  CHAT_MAX_LEN,
+  CHAT_RATE_LIMIT_MS,
+  TYPING_TIMEOUT_MS,
   ProtocolError,
   encodeServerFrame,
   parseClientFrame,
@@ -66,6 +70,16 @@ export function createInitialSnapshot(): RoomSnapshot {
 // route validates UUID and stores it in uuid PKs.
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True when the raw payload intended chat/typing (malformed -> drop, not close). */
+function isChatOrTypingIntent(raw: string): boolean {
+  try {
+    const data = JSON.parse(raw) as { t?: unknown };
+    return data.t === "chat" || data.t === "typing";
+  } catch {
+    return false;
+  }
+}
 
 // --- Authoritative move decision (pure, bundle-safe) ---
 //
@@ -191,6 +205,14 @@ export class GameRoom extends DurableObject<Env> {
   private gameId: string | null = null;
   /** Clerk identity per role, bound at WS join from the token `sub` claim. */
   private clerkIds = new Map<Role, string>();
+  /** Stage 5 chat: last-50 broadcast memory (in-memory only). */
+  private chatHistory: Array<{ from: Role; text: string; at: number }> = [];
+  /** Per-socket last accepted chat timestamp for 1/sec limit. */
+  private lastChatAt = new Map<unknown, number>();
+  /** Role -> timestamp of last typing-on. Expires after TYPING_TIMEOUT_MS. */
+  private typingAt = new Map<Role, number>();
+  /** Malformed chat/typing drops (observability, never breaks play). */
+  private droppedChats = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -402,11 +424,20 @@ export class GameRoom extends DurableObject<Env> {
         ws.send(
           encodeServerFrame({ t: "state", state: this.gameState, version: this.version }),
         );
+        this.replayChat(ws);
         this.broadcastPresence();
         return;
       }
       if (!att.joined || !att.role) {
         ws.close(1008, "join first");
+        return;
+      }
+      if (frame.t === "chat") {
+        this.handleChat(ws, att.role, frame.text);
+        return;
+      }
+      if (frame.t === "typing") {
+        this.handleTyping(ws, att.role, frame.on);
         return;
       }
       if (frame.t !== "move") {
@@ -439,6 +470,11 @@ export class GameRoom extends DurableObject<Env> {
         this.broadcastEnd(this.gameState.winner, "win");
       }
     } catch (err) {
+      // Chat/typing malformed -> drop + count, never break play.
+      if (err instanceof ProtocolError && isChatOrTypingIntent(raw)) {
+        this.droppedChats += 1;
+        return;
+      }
       const code = err instanceof ProtocolError ? err.closeCode : 1003;
       try {
         ws.close(code, "malformed frame");
@@ -452,6 +488,7 @@ export class GameRoom extends DurableObject<Env> {
     void _code;
     void _reason;
     const att = ws.deserializeAttachment() as Attachment | null;
+    this.lastChatAt.delete(ws as unknown as object);
     if (att?.role) {
       const now = Date.now();
       this.lastSeen.set(att.role, now);
@@ -459,6 +496,9 @@ export class GameRoom extends DurableObject<Env> {
       // rejoin with a stale lastVersion resyncs. Presence flips to offline
       // immediately; the alarm only expires the grace bookkeeping.
       this.disconnectedAt.set(att.role, now);
+      if (this.typingAt.delete(att.role)) {
+        this.broadcastTyping(att.role, false, ws as unknown as object);
+      }
       try {
         await this.ctx.storage.setAlarm(now + RECONNECT_GRACE_MS);
       } catch {
@@ -591,6 +631,86 @@ export class GameRoom extends DurableObject<Env> {
         );
       } catch {
         // ignore send to closing socket
+      }
+    }
+  }
+
+  // --- Stage 5 chat ---
+
+  private handleChat(ws: WebSocket, role: Role, rawText: string) {
+    const now = Date.now();
+    this.expireTyping(now);
+    const text = rawText.trim().slice(0, CHAT_MAX_LEN);
+    if (!text) {
+      this.droppedChats += 1;
+      return;
+    }
+    const last = this.lastChatAt.get(ws as unknown as object) ?? -Infinity;
+    if (now - last < CHAT_RATE_LIMIT_MS) {
+      this.droppedChats += 1;
+      return;
+    }
+    this.lastChatAt.set(ws as unknown as object, now);
+    const msg = { from: role, text, at: now };
+    this.chatHistory.push(msg);
+    if (this.chatHistory.length > CHAT_HISTORY_LIMIT) {
+      this.chatHistory = this.chatHistory.slice(-CHAT_HISTORY_LIMIT);
+    }
+    this.broadcastChat(msg);
+  }
+
+  private handleTyping(ws: WebSocket, role: Role, on: boolean) {
+    const now = Date.now();
+    this.expireTyping(now);
+    if (on) {
+      this.typingAt.set(role, now);
+      this.broadcastTyping(role, true, ws as unknown as object);
+    } else {
+      this.typingAt.delete(role);
+      this.broadcastTyping(role, false, ws as unknown as object);
+    }
+  }
+
+  private expireTyping(now: number) {
+    for (const [role, at] of [...this.typingAt]) {
+      if (now - at > TYPING_TIMEOUT_MS) {
+        this.typingAt.delete(role);
+        this.broadcastTyping(role, false, null);
+      }
+    }
+  }
+
+  private broadcastChat(msg: { from: Role; text: string; at: number }) {
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.joined || !att.role) continue;
+      try {
+        ws.send(encodeServerFrame({ t: "chat", ...msg }));
+      } catch {
+        // ignore send to closing socket
+      }
+    }
+  }
+
+  private broadcastTyping(from: Role, on: boolean, exclude: unknown) {
+    for (const ws of this.ctx.getWebSockets()) {
+      if (exclude !== null && (ws as unknown as object) === exclude) continue;
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.joined || !att.role) continue;
+      try {
+        ws.send(encodeServerFrame({ t: "typing", from, on }));
+      } catch {
+        // ignore send to closing socket
+      }
+    }
+  }
+
+  private replayChat(ws: WebSocket) {
+    for (const msg of this.chatHistory) {
+      try {
+        ws.send(encodeServerFrame({ t: "chat", ...msg }));
+      } catch {
+        break;
       }
     }
   }

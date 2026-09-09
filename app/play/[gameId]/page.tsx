@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { legalMoves } from "@/lib/rules/international";
 import { useGameRoom, type Role } from "@/hooks/useGameRoom";
+import { ChatPanel } from "@/components/dame/ChatPanel";
 import { Toaster } from "@/components/ui/sonner";
 
 function isRole(v: string | null): v is Role {
@@ -101,8 +102,19 @@ function OnlineBoard({
   token: string;
   initialRole: Role;
 }) {
-  const { state, version, connected, you, opponentConnected, end, sendMove } =
-    useGameRoom({ gameId, token });
+  const {
+    state,
+    version,
+    connected,
+    you,
+    opponentConnected,
+    end,
+    sendMove,
+    messages,
+    opponentTyping,
+    sendChat,
+    sendTyping,
+  } = useGameRoom({ gameId, token });
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const router = useRouter();
   const [rematching, setRematching] = useState(false);
@@ -246,63 +258,72 @@ function OnlineBoard({
           </div>
         </div>
       ) : null}
-      <div
-        data-testid="board"
-        aria-label="Online checkers board"
-        className="grid aspect-square w-full max-w-[560px] grid-cols-10 overflow-hidden rounded-[var(--dame-radius)] border border-white/10"
-        style={{ background: "var(--dame-felt)" }}
-      >
-        {Array.from({ length: 100 }).map((_, i) => {
-          const r = Math.floor(i / 10);
-          const c = i % 10;
-          const dark = (r + c) % 2 === 1;
-          const piece = state.board[r]?.[c];
-          const isSelected =
-            activeSelected !== null && activeSelected[0] === r && activeSelected[1] === c;
-          const isDest = destIds.has(`${r},${c}`);
-          return (
-            <button
-              key={i}
-              type="button"
-              data-testid={`square-${r}-${c}`}
-              aria-label={`square ${r} ${c}${piece ? ` ${piece.color} ${piece.kind}` : ""}${isDest ? " destination" : ""}`}
-              onClick={() => handleSquare(r, c)}
-              className={`flex min-h-[44px] min-w-[44px] items-center justify-center ${
-                dark ? "bg-black/30" : "bg-white/10"
-              }`}
-              style={isSelected ? { boxShadow: "inset 0 0 0 3px var(--dame-gold)" } : undefined}
-            >
-              {piece ? (
-                <span
-                  data-testid={`piece-${r}-${c}`}
-                  aria-hidden="true"
-                  className={`flex h-[70%] w-[70%] items-center justify-center rounded-full ${
-                    piece.color === "white" ? "" : "border-2 border-white/40"
-                  }`}
-                  style={{
-                    background:
-                      piece.color === "white" ? "var(--dame-ivory)" : "var(--dame-ebony)",
-                  }}
-                >
-                  {piece.kind === "king" ? (
-                    <span
-                      aria-hidden="true"
-                      className="h-1/3 w-1/3 rounded-full"
-                      style={{ background: "var(--dame-gold)" }}
-                    />
-                  ) : null}
-                </span>
-              ) : isDest ? (
-                <span
-                  data-testid={`dest-${r}-${c}`}
-                  aria-hidden="true"
-                  className="h-1/3 w-1/3 rounded-full"
-                  style={{ background: "var(--dame-teal)" }}
-                />
-              ) : null}
-            </button>
-          );
-        })}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,560px)_320px] lg:items-start">
+        <div
+          data-testid="board"
+          aria-label="Online checkers board"
+          className="grid aspect-square w-full max-w-[560px] grid-cols-10 overflow-hidden rounded-[var(--dame-radius)] border border-white/10"
+          style={{ background: "var(--dame-felt)" }}
+        >
+          {Array.from({ length: 100 }).map((_, i) => {
+            const r = Math.floor(i / 10);
+            const c = i % 10;
+            const dark = (r + c) % 2 === 1;
+            const piece = state.board[r]?.[c];
+            const isSelected =
+              activeSelected !== null && activeSelected[0] === r && activeSelected[1] === c;
+            const isDest = destIds.has(`${r},${c}`);
+            return (
+              <button
+                key={i}
+                type="button"
+                data-testid={`square-${r}-${c}`}
+                aria-label={`square ${r} ${c}${piece ? ` ${piece.color} ${piece.kind}` : ""}${isDest ? " destination" : ""}`}
+                onClick={() => handleSquare(r, c)}
+                className={`flex min-h-[44px] min-w-[44px] items-center justify-center ${
+                  dark ? "bg-black/30" : "bg-white/10"
+                }`}
+                style={isSelected ? { boxShadow: "inset 0 0 0 3px var(--dame-gold)" } : undefined}
+              >
+                {piece ? (
+                  <span
+                    data-testid={`piece-${r}-${c}`}
+                    aria-hidden="true"
+                    className={`flex h-[70%] w-[70%] items-center justify-center rounded-full ${
+                      piece.color === "white" ? "" : "border-2 border-white/40"
+                    }`}
+                    style={{
+                      background:
+                        piece.color === "white" ? "var(--dame-ivory)" : "var(--dame-ebony)",
+                    }}
+                  >
+                    {piece.kind === "king" ? (
+                      <span
+                        aria-hidden="true"
+                        className="h-1/3 w-1/3 rounded-full"
+                        style={{ background: "var(--dame-gold)" }}
+                      />
+                    ) : null}
+                  </span>
+                ) : isDest ? (
+                  <span
+                    data-testid={`dest-${r}-${c}`}
+                    aria-hidden="true"
+                    className="h-1/3 w-1/3 rounded-full"
+                    style={{ background: "var(--dame-teal)" }}
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <ChatPanel
+          messages={messages}
+          you={you}
+          opponentTyping={opponentTyping}
+          onSend={sendChat}
+          onTyping={sendTyping}
+        />
       </div>
       <Toaster />
     </div>
