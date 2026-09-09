@@ -65,9 +65,11 @@ export const invites = pgTable("invites", {
 // Stage 5 social: friendships + presence. No FK constraints by intent (see
 // note above): neon-http has no multi-statement transactions, so routes own
 // idempotency in app code and must never deadlock on cross-table FK checks.
-// Pair uniqueness is (requester, addressee) ordered; the friends route
-// rejects reverse duplicates in app code (second request → 409) so the
-// unordered pair stays unique without an expression index.
+// Pair uniqueness is unordered: the ordered (requester, addressee) index
+// below covers the common case, and drizzle/0005_friendships_unordered.sql
+// adds a LEAST/GREATEST expression index as the race backstop for concurrent
+// opposite-direction inserts (A→B + B→A). The friends route pre-checks with
+// findBetween and maps both the pre-check hit and SQLSTATE 23505 to 409.
 export const friendships = pgTable("friendships", {
   id: uuid("id").defaultRandom().primaryKey(),
   requesterClerkId: text("requester_clerk_id").notNull(),

@@ -24,6 +24,8 @@ export function ChatPanel({
   function pokeTyping() {
     onTyping?.(true);
     if (typingOffRef.current) clearTimeout(typingOffRef.current);
+    // Timeout chain: input re-arms off at 2s < hook 3s < worker 5s, so the
+    // indicator clears even when keystrokes stop or an off frame is lost.
     typingOffRef.current = setTimeout(() => onTyping?.(false), 2000);
   }
 

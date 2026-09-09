@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { games, ratings, ratingHistory } from "@/lib/db/schema";
+import { games, ratings, ratingHistory, users } from "@/lib/db/schema";
 import { sendResultEmail } from "@/lib/email/send";
 import {
   persistFinishedGame,
@@ -68,6 +68,8 @@ async function clerkUserId(): Promise<string | null> {
 export interface FinishDeps {
   store: FinishStore;
   clerkAuth: () => Promise<string | null>;
+  /** Best-effort display-name lookup; missing → clerkId-slice fallback. */
+  resolveNames?: (clerkIds: string[]) => Promise<Map<string, string>>;
 }
 
 function isUniqueViolation(e: unknown): boolean {
@@ -275,20 +277,34 @@ export async function handleFinish(
 
   const result = await persistFinishedGame(deps.store, parsed.input);
   // Best-effort result email (never throws, never blocks the response).
-  // Recipient addresses are optional caller-supplied fields; duplicates
-  // (retries) never resend.
+  // Recipient addresses are optional caller-supplied fields (@-validated);
+  // duplicates (retries) never resend. Per-recipient throttle (5/hour) lives
+  // in lib/email/send. Names prefer users.displayName with clerkId-slice
+  // fallback so emails never leak raw long ids unnecessarily.
   if (!result.duplicate) {
     const fields = (body ?? {}) as Record<string, unknown>;
     const origin = new URL(req.url).origin;
     const rematchUrl = `${origin}/play/join`;
+    let names = new Map<string, string>();
+    try {
+      names = deps.resolveNames
+        ? await deps.resolveNames([parsed.input.whiteClerkId, parsed.input.blackClerkId])
+        : new Map<string, string>();
+    } catch {
+      names = new Map<string, string>();
+    }
+    const whiteName =
+      names.get(parsed.input.whiteClerkId) ?? parsed.input.whiteClerkId.slice(0, 12);
+    const blackName =
+      names.get(parsed.input.blackClerkId) ?? parsed.input.blackClerkId.slice(0, 12);
     for (const to of [fields.whiteEmail, fields.blackEmail]) {
       if (typeof to === "string" && to.includes("@")) {
         void sendResultEmail({
           to,
           gameId: result.game.gameId,
           winner: result.game.winner,
-          whiteName: parsed.input.whiteClerkId,
-          blackName: parsed.input.blackClerkId,
+          whiteName,
+          blackName,
           whiteDelta: result.white.after.rating - result.white.before.rating,
           blackDelta: result.black.after.rating - result.black.before.rating,
           rematchUrl,
@@ -307,5 +323,23 @@ export async function handleFinish(
 }
 
 export async function POST(req: Request) {
-  return handleFinish(req, { store: drizzleStore(db), clerkAuth: clerkUserId });
+  return handleFinish(req, {
+    store: drizzleStore(db),
+    clerkAuth: clerkUserId,
+    resolveNames: async (clerkIds) => {
+      try {
+        const rows = await db
+          .select()
+          .from(users)
+          .where(inArray(users.clerkId, clerkIds));
+        return new Map(
+          rows
+            .filter((u) => u.displayName)
+            .map((u) => [u.clerkId, u.displayName as string]),
+        );
+      } catch {
+        return new Map<string, string>();
+      }
+    },
+  });
 }

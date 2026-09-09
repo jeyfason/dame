@@ -132,6 +132,27 @@ describe("api/friends actions", () => {
     expect(reverse.status).toBe(409);
   });
 
+  it("opposite-direction race (insert 23505) 409, not 500", async () => {
+    // Two concurrent requests (A→B + B→A) can both pass the findBetween
+    // pre-check; the unordered DB index (0005) then rejects the loser with
+    // 23505, which the route maps to 409. Simulate by hiding the row from
+    // the pre-check but throwing on insert.
+    const racy: FriendStore = {
+      findBetween: async () => null,
+      findDirected: (r, a) => store.findDirected(r, a),
+      insert: async () => {
+        const e = new Error('duplicate key value violates unique constraint "friendships_unordered_uniq"');
+        (e as { code?: string }).code = "23505";
+        throw e;
+      },
+      updateStatus: (r, a, s, n) => store.updateStatus(r, a, s, n),
+      deleteBetween: (a, b) => store.deleteBetween(a, b),
+      listFor: (u) => store.listFor(u),
+    };
+    const res = await handleFriendAction(actionReq("request", "user_b"), deps(racy, presence, "user_a"));
+    expect(res.status).toBe(409);
+  });
+
   it("accept flips pending to accepted", async () => {
     await handleFriendAction(actionReq("request", "user_b"), deps(store, presence, "user_a"));
     const res = await handleFriendAction(actionReq("accept", "user_a"), deps(store, presence, "user_b"));

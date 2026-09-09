@@ -89,21 +89,27 @@ export default async function Leaderboard({
         .limit(100);
       title = "Friends leaderboard";
       subtitle = `You + ${friendIds.length} friend${friendIds.length === 1 ? "" : "s"}.`;
-      if (rows.length > 0) {
-        const seen = await db
-          .select()
-          .from(presence)
-          .where(
-            inArray(
-              presence.clerkId,
-              rows.map((r) => r.clerkId),
-            ),
+      // Presence is best-effort (mirrors GET /api/friends): a failing seen
+      // lookup degrades to all-offline, never to the unavailable page.
+      try {
+        if (rows.length > 0) {
+          const seen = await db
+            .select()
+            .from(presence)
+            .where(
+              inArray(
+                presence.clerkId,
+                rows.map((r) => r.clerkId),
+              ),
+            );
+          const seenMap = new Map(seen.map((s) => [s.clerkId, s.lastSeen]));
+          const now = new Date();
+          online = new Map(
+            rows.map((r) => [r.clerkId, isOnline(seenMap.get(r.clerkId), now)]),
           );
-        const seenMap = new Map(seen.map((s) => [s.clerkId, s.lastSeen]));
-        const now = new Date();
-        online = new Map(
-          rows.map((r) => [r.clerkId, isOnline(seenMap.get(r.clerkId), now)]),
-        );
+        }
+      } catch {
+        online = new Map<string, boolean>();
       }
     } else {
       rows = await db

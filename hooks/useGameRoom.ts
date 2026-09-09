@@ -78,6 +78,7 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
   const wsRef = useRef<WebSocket | null>(null);
   const versionRef = useRef(0);
   const stateRef = useRef<GameState | null>(null);
+  const youRef = useRef<Role | null>(null);
   const attemptRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,6 +87,7 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
   useEffect(() => {
     stateRef.current = state;
     versionRef.current = version;
+    youRef.current = you;
   });
 
   useEffect(() => {
@@ -187,17 +189,26 @@ export function useGameRoom(options: UseGameRoomOptions): UseGameRoomResult {
           const text = frame.text as string;
           const at = frame.at as number;
           if ((from === "white" || from === "black") && typeof text === "string") {
+            // Client cap mirrors the worker's last-50 memory
+            // (CHAT_HISTORY_LIMIT): bounded list, never unbounded growth.
             setMessages((prev) =>
-              [...prev, { from, text, at: typeof at === "number" ? at : Date.now() }].slice(-100),
+              [...prev, { from, text, at: typeof at === "number" ? at : Date.now() }].slice(-50),
             );
           }
           return;
         }
         if (frame.t === "typing") {
+          const from = frame.from as Role;
+          // Ignore our own echoes (worker excludes the sender, but a second
+          // tab or replay could echo back): only the opponent drives the line.
+          if (from === youRef.current) return;
           const on = Boolean(frame.on);
           if (on) {
             setOpponentTyping(true);
             clearTypingTimer();
+            // Timeout chain: client 3s < worker TYPING_TIMEOUT_MS 5s. Either
+            // the explicit off or this timer clears the line, so a lost off
+            // frame can never stick the indicator on.
             typingTimeoutRef.current = setTimeout(() => {
               if (!closed) setOpponentTyping(false);
             }, 3000);

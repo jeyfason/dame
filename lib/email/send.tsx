@@ -9,7 +9,34 @@ import { ResultEmail, type ResultWinner } from "@/emails/ResultEmail";
 
 export type SendResult = { skipped: true } | { sent: true };
 
+// TODO: set EMAIL_FROM to a verified domain (e.g. Dame <noreply@dame.gg>).
+// Default onboarding@resend.dev only delivers to the Resend account owner.
 const FROM = process.env.EMAIL_FROM ?? "Dame <onboarding@resend.dev>";
+
+// Transactional throttle: max 5 sends/hour per recipient (in-memory map).
+// Minimal by intent: stops invite/finish loops from spamming one address
+// without a DB column or queue. Resets on deploy/scale-to-zero; upgrade to
+// DB/Redis-backed counting if abuse persists or instances fan out.
+const SEND_WINDOW_MS = 60 * 60 * 1000;
+const MAX_SENDS_PER_WINDOW = 5;
+const sendTimes = new Map<string, number[]>();
+
+function throttled(to: string, now: number = Date.now()): boolean {
+  const key = to.trim().toLowerCase();
+  const recent = (sendTimes.get(key) ?? []).filter((t) => now - t < SEND_WINDOW_MS);
+  if (recent.length >= MAX_SENDS_PER_WINDOW) {
+    sendTimes.set(key, recent);
+    return true;
+  }
+  recent.push(now);
+  sendTimes.set(key, recent);
+  return false;
+}
+
+/** Test-only: clear the in-memory throttle. */
+export function __resetEmailThrottleForTests(): void {
+  sendTimes.clear();
+}
 
 function crumb(message: string, data?: Record<string, unknown>) {
   try {
@@ -30,8 +57,14 @@ async function send(opts: {
     crumb("email skipped: no RESEND_API_KEY", { kind: opts.kind });
     return { skipped: true };
   }
-  if (!opts.to) {
+  // Central recipient validation: missing or "@"-less addresses never send.
+  // Route-level asEmail checks mirror this; defense-in-depth for direct callers.
+  if (!opts.to || !opts.to.includes("@")) {
     crumb("email skipped: no recipient", { kind: opts.kind });
+    return { skipped: true };
+  }
+  if (throttled(opts.to)) {
+    crumb("email skipped: rate-limited", { kind: opts.kind });
     return { skipped: true };
   }
   try {
