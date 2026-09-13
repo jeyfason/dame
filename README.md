@@ -166,5 +166,4 @@ Contributions are welcome. A few ground rules to keep reviews fast:
 
 ## License
 
-All rights reserved until a license is decided. Reach out before reusing the
-code in production.
+Released under the [MIT License](LICENSE).
