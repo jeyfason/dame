@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "dame",
+  "compatibility_date": "2026-09-07",
+  "compatibility_flags": [
+    "global_fetch_strictly_public"
+  ],
+  // Server-side Clerk URLs — auth.protect() rewrites to these. The
+  // NEXT_PUBLIC_ variants only reach the client bundle, not the middleware.
+  "vars": {
+    "CLERK_SIGN_IN_URL": "/sign-in",
+    "CLERK_SIGN_UP_URL": "/sign-up"
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "dame"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "dame-opennext-cache"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
