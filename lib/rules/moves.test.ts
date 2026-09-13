@@ -47,24 +47,29 @@ describe("quiet man steps", () => {
     expect(moves.every((m) => m.from[0] === 3)).toBe(true);
   });
 
-  it("lone white man in center has 4 steps (forward+backward)", () => {
+  it("lone white man in center has 2 forward steps", () => {
     const b = emptyBoard();
     put(b, 5, 4, "white");
     expect(dests(legalMoves(state(b)))).toEqual(
       expect.arrayContaining([
         [4, 3],
         [4, 5],
-        [6, 3],
-        [6, 5],
       ]),
     );
-    expect(legalMoves(state(b))).toHaveLength(4);
+    expect(legalMoves(state(b))).toHaveLength(2);
   });
 
-  it("lone black man in center has 4 steps", () => {
+  it("lone black man in center has 2 forward steps", () => {
     const b = emptyBoard();
     put(b, 4, 5, "black");
-    expect(legalMoves(state(b, "black"))).toHaveLength(4);
+    const moves = legalMoves(state(b, "black"));
+    expect(dests(moves)).toEqual(
+      expect.arrayContaining([
+        [5, 4],
+        [5, 6],
+      ]),
+    );
+    expect(moves).toHaveLength(2);
   });
 
   it("corner man (9,0) has exactly 1 step", () => {
@@ -85,17 +90,26 @@ describe("quiet man steps", () => {
     expect(from(legalMoves(state(b)), 5, 4)).toHaveLength(0);
   });
 
-  it("white man steps backward to a higher row", () => {
+  it("white man cannot step backward (strict FMJD)", () => {
     const b = emptyBoard();
     put(b, 3, 4, "white");
-    expect(dests(legalMoves(state(b)))).toContainEqual([4, 3]);
+    const moves = legalMoves(state(b));
+    expect(dests(moves)).toEqual(
+      expect.arrayContaining([
+        [2, 3],
+        [2, 5],
+      ]),
+    );
+    expect(dests(moves)).not.toContainEqual([4, 3]);
+    expect(dests(moves)).not.toContainEqual([4, 5]);
+    expect(moves).toHaveLength(2);
   });
 
   it("quiet step onto back rank sets promotes", () => {
     const b = emptyBoard();
     put(b, 1, 2, "white");
     const moves = legalMoves(state(b));
-    expect(moves).toHaveLength(4);
+    expect(moves).toHaveLength(2);
     const promo = moves.filter((m) => m.promotes);
     expect(dests(promo)).toEqual(
       expect.arrayContaining([

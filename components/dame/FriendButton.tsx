@@ -6,7 +6,9 @@ import { toast } from "sonner";
 type Relation = "unknown" | "none" | "outgoing" | "incoming" | "friends";
 
 const btn =
-  "min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] px-5 py-3 text-sm font-semibold transition-opacity duration-150 hover:opacity-90 disabled:opacity-50";
+  "min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] px-5 py-2.5 text-sm font-semibold transition-transform duration-150 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50";
+const ghostBtn =
+  "min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.16)] bg-transparent px-5 py-2.5 text-sm font-medium transition-colors duration-150 hover:border-[rgba(201,162,39,0.45)] disabled:cursor-not-allowed disabled:opacity-50";
 
 // Profile friend button: Add / Requested / Accept+Decline / Friends+Remove.
 // Resolves the current relation via GET /api/friends, acts via POST.
@@ -80,7 +82,7 @@ export function FriendButton({ userId }: { userId: string }) {
         type="button"
         disabled
         aria-label="Loading friendship status"
-        className={`${btn} border border-white/20`}
+        className={ghostBtn}
       >
         …
       </button>
@@ -89,7 +91,7 @@ export function FriendButton({ userId }: { userId: string }) {
 
   if (relation === "outgoing") {
     return (
-      <p data-testid="friend-status" className="text-sm opacity-70">
+      <p data-testid="friend-status" className="text-sm text-[var(--dame-muted)]">
         Friend request sent.
       </p>
     );
@@ -105,7 +107,7 @@ export function FriendButton({ userId }: { userId: string }) {
           disabled={busy}
           onClick={() => act("accept")}
           className={btn}
-          style={{ background: "var(--dame-gold)", color: "black" }}
+          style={{ background: "var(--dame-accent)", color: "var(--dame-accent-ink)" }}
         >
           Accept friend
         </button>
@@ -115,7 +117,7 @@ export function FriendButton({ userId }: { userId: string }) {
           aria-label="Decline friend request"
           disabled={busy}
           onClick={() => act("decline")}
-          className={`${btn} border border-white/20`}
+          className={ghostBtn}
         >
           Decline
         </button>
@@ -126,7 +128,7 @@ export function FriendButton({ userId }: { userId: string }) {
   if (relation === "friends") {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <p data-testid="friend-status" className="text-sm opacity-70">
+        <p data-testid="friend-status" className="text-sm text-[var(--dame-muted)]">
           Friends
         </p>
         <button
@@ -135,7 +137,7 @@ export function FriendButton({ userId }: { userId: string }) {
           aria-label="Remove friend"
           disabled={busy}
           onClick={() => act("remove")}
-          className={`${btn} border border-white/20`}
+          className={ghostBtn}
         >
           Remove friend
         </button>
@@ -151,7 +153,7 @@ export function FriendButton({ userId }: { userId: string }) {
       disabled={busy}
       onClick={() => act("request")}
       className={btn}
-      style={{ background: "var(--dame-gold)", color: "black" }}
+      style={{ background: "var(--dame-accent)", color: "var(--dame-accent-ink)" }}
     >
       Add friend
     </button>

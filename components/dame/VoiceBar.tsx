@@ -26,11 +26,12 @@ export function VoiceBar({
       data-testid="voice-bar"
       data-state={enabled ? "ready" : "disabled"}
       aria-label="Voice chat"
-      className="grid gap-3 rounded-[var(--dame-radius)] border border-white/10 p-4"
-      style={{ background: "var(--dame-felt-deep)" }}
+      className="grid gap-3 rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.08)] bg-[var(--dame-surface-deep)] p-4"
     >
-      <h3 className="text-sm font-bold tracking-wide uppercase">Voice</h3>
-      <p className="text-sm opacity-70">
+      <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--dame-muted)]">
+        Voice
+      </h3>
+      <p className="text-sm text-[var(--dame-muted)]">
         {!enabled
           ? "Voice chat is off for this match."
           : muted
@@ -43,8 +44,8 @@ export function VoiceBar({
           data-testid="voice-join"
           aria-label="Join voice chat"
           disabled={!enabled}
-          className="min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] px-5 py-2 text-sm font-semibold text-black transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ background: "var(--dame-gold)" }}
+          className="min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] px-5 py-2 text-sm font-semibold text-[var(--dame-accent-ink)] transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ background: "var(--dame-accent)" }}
         >
           Join voice
         </button>
@@ -55,7 +56,7 @@ export function VoiceBar({
             aria-label="Toggle microphone mute"
             aria-pressed={muted}
             onClick={toggle}
-            className="min-h-[44px] min-w-[44px] cursor-pointer rounded-[var(--dame-radius)] border border-white/20 px-5 py-2 text-sm transition-opacity duration-150 hover:opacity-80"
+            className="min-h-[44px] min-w-[44px] cursor-pointer rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.16)] px-5 py-2 text-sm transition-colors duration-150 hover:border-[rgba(201,162,39,0.45)]"
           >
             {muted ? "Muted" : "Unmuted"}
           </button>

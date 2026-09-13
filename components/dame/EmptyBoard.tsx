@@ -1,16 +1,18 @@
+/** Static premium board for decorative use (espresso frame, maple/walnut squares). */
 export function EmptyBoard() {
   return (
     <div
       aria-label="10 by 10 checkers board placeholder"
-      className="grid aspect-square w-full max-w-[560px] grid-cols-10 overflow-hidden rounded-[var(--dame-radius)] border border-white/10"
-      style={{ background: "var(--dame-felt)" }}
+      className="dame-board-frame w-full max-w-[560px] p-2.5 sm:p-3"
     >
-      {Array.from({ length: 100 }).map((_, i) => {
-        const r = Math.floor(i / 10);
-        const c = i % 10;
-        const dark = (r + c) % 2 === 1;
-        return <div key={i} className={dark ? "bg-black/30" : "bg-white/10"} />;
-      })}
+      <div className="grid aspect-square w-full grid-cols-10 overflow-hidden rounded-[10px] shadow-[inset_0_2px_8px_rgba(0,0,0,0.55)]">
+        {Array.from({ length: 100 }).map((_, i) => {
+          const r = Math.floor(i / 10);
+          const c = i % 10;
+          const dark = (r + c) % 2 === 1;
+          return <div key={i} className={dark ? "dame-square-dark" : "dame-square-light"} />;
+        })}
+      </div>
     </div>
   );
 }

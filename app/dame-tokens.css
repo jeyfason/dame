@@ -1,16 +1,56 @@
+/*
+ * Dame design tokens — "classic premium" (spec: 2026-09-09).
+ * Warm walnut board, cream/jet pieces, aged brass accent, deep forest felt.
+ * Components never use raw hex — everything routes through these vars.
+ */
 :root {
-  --dame-felt: #0e3b2e;
-  --dame-felt-deep: #0a2c22;
-  --dame-ivory: #f5efe0;
-  --dame-ebony: #171a21;
-  --dame-gold: #d4a94e;
-  --dame-teal: #2dd4bf;
-  --dame-ink: #101418;
-  --dame-muted: #6b7280;
-  --dame-muted-on-dark: #b8c0ce;
+  /* Board */
+  --dame-board-light: #e8d5b0; /* warm maple light squares */
+  --dame-board-dark: #a9713f; /* walnut dark squares */
+  --dame-board-frame: #3e2a1e; /* espresso frame */
+  --dame-board-frame-hi: #5a402c; /* bevel inner highlight */
+  --dame-frame-text: #c9b08a; /* coordinates on the frame */
+
+  /* Pieces */
+  --dame-piece-white: #f7f1e3; /* cream, ridged */
+  --dame-piece-white-edge: #d8cbae;
+  --dame-piece-black: #1c1b18; /* jet, specular */
+  --dame-piece-black-edge: #3c3a34;
+
+  /* Accent — aged brass: selection, focus, kings, primary buttons */
+  --dame-accent: #c9a227;
+  --dame-accent-hi: #e2c45c;
+  --dame-accent-ink: #241c05; /* text on brass */
+
+  /* Surfaces — deep forest felt family */
+  --dame-felt: #23301f;
+  --dame-felt-deep: #1a2418;
+  --dame-surface: #2a3327;
+  --dame-surface-deep: #222b20;
+
+  /* Text */
+  --dame-text: #f2ede3;
+  --dame-muted: #9ba694;
+
+  /* Feedback */
+  --dame-danger: #d05b4c; /* invalid flash */
+
+  /* Motion scale (dame-motion) */
+  --dame-t-slide: 180ms;
+  --dame-t-shake: 250ms;
+  --dame-t-glow: 300ms;
+  --dame-t-overlay: 220ms;
+  --dame-t-lift: 120ms;
+
   --dame-radius: 14px;
 }
+
+/* The premium felt identity IS both themes — keep values in sync. */
 .dark {
-  --dame-felt: #0e3b2e;
-  --dame-ivory: #f5efe0;
+  --dame-felt: #23301f;
+  --dame-felt-deep: #1a2418;
+  --dame-surface: #2a3327;
+  --dame-surface-deep: #222b20;
+  --dame-text: #f2ede3;
+  --dame-muted: #9ba694;
 }

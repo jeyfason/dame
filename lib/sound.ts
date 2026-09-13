@@ -1,4 +1,4 @@
-export type SoundKind = "move" | "capture" | "win";
+export type SoundKind = "move" | "capture" | "win" | "invalid";
 
 export const SOUND_STORAGE_KEY = "dame:sound-enabled";
 
@@ -76,6 +76,10 @@ export function playSound(kind: SoundKind): void {
     } else if (kind === "capture") {
       tone(ac, 330, t, 0.1, "triangle");
       tone(ac, 495, t + 0.07, 0.14, "triangle");
+    } else if (kind === "invalid") {
+      // Low wooden "thud" for invalid taps / not-your-turn.
+      tone(ac, 110, t, 0.12, "triangle", 0.16);
+      tone(ac, 82, t + 0.02, 0.14, "sine", 0.14);
     } else {
       tone(ac, 523.25, t, 0.14);
       tone(ac, 659.25, t + 0.11, 0.14);
@@ -94,11 +98,41 @@ export function playCapture(): void {
   playSound("capture");
 }
 
+let faahAudio: HTMLAudioElement | null = null;
+const FAAH_SRC = "/sounds/faah.mp3";
+
+/**
+ * "Faah!" call-out for multi-captures (2+ men eaten in one move).
+ * Uses the recorded sample instead of the synth; respects the sound toggle.
+ */
+export function playMultiCapture(): void {
+  if (!isSoundEnabled()) return;
+  if (typeof window === "undefined" || typeof window.Audio !== "function") return;
+  try {
+    if (!faahAudio) {
+      faahAudio = new window.Audio(FAAH_SRC);
+      faahAudio.preload = "auto";
+    }
+    faahAudio.currentTime = 0;
+    void faahAudio.play().catch(() => {
+      // autoplay/decode failures must never break gameplay
+    });
+  } catch {
+    // audio failures must never break gameplay
+  }
+}
+
 export function playWin(): void {
   playSound("win");
+}
+
+/** Low wooden thud for invalid taps / not-your-turn feedback. */
+export function playInvalid(): void {
+  playSound("invalid");
 }
 
 /** Test hook: drop the cached context so jsdom tests stay isolated. */
 export function __resetSoundForTests(): void {
   ctx = null;
+  faahAudio = null;
 }

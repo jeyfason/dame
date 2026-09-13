@@ -103,7 +103,7 @@ describe("promotes flag is derived", () => {
   });
 });
 
-describe("king multi-landing + backward-quiet deviation", () => {
+describe("king multi-landing + forward-only quiet steps", () => {
   it("king capture exposes every empty beyond as a separate move", () => {
     const b = emptyBoard();
     put(b, 5, 2, "white", "king");
@@ -120,21 +120,30 @@ describe("king multi-landing + backward-quiet deviation", () => {
     );
   });
 
-  it("men step backward quietly (brief deviation from strict FMJD forward-only)", () => {
-    // Brief §6.1: men step/capture forward and backward. Strict FMJD
-    // quiet steps are forward-only; this engine intentionally allows
-    // backward quiet steps per brief. Locked here.
+  it("men cannot step backward (strict FMJD forward-only quiet moves)", () => {
+    // Strict FMJD: men's quiet steps are forward-diagonal only. Captures
+    // stay bidirectional (locked by the backward-capture suites).
     const b = emptyBoard();
     put(b, 5, 4, "white");
     const moves = legalMoves(state(b));
-    expect(moves).toHaveLength(4);
+    expect(moves).toHaveLength(2);
     expect(moves.map((m) => m.to)).toEqual(
       expect.arrayContaining([
         [4, 3],
         [4, 5],
-        [6, 3],
-        [6, 5],
       ]),
     );
+    expect(moves.map((m) => m.to)).not.toContainEqual([6, 3]);
+    expect(moves.map((m) => m.to)).not.toContainEqual([6, 5]);
+  });
+
+  it("man still captures backward (captures stay bidirectional)", () => {
+    const b = emptyBoard();
+    put(b, 5, 4, "white");
+    put(b, 6, 3, "black");
+    const moves = legalMoves(state(b));
+    expect(moves).toHaveLength(1);
+    expect(moves[0].to).toEqual([7, 2]);
+    expect(moves[0].captures).toEqual([[6, 3]]);
   });
 });

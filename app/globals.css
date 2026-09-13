@@ -8,9 +8,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-outfit);
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-fraunces);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,73 +49,77 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * One identity, both themes: the premium felt look IS the theme.
+ * Light theme = same felt family, slightly lifted (spec 2026-09-09).
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: var(--dame-felt-deep);
+  --foreground: var(--dame-text);
+  --card: var(--dame-surface);
+  --card-foreground: var(--dame-text);
+  --popover: var(--dame-surface-deep);
+  --popover-foreground: var(--dame-text);
+  --primary: var(--dame-accent);
+  --primary-foreground: var(--dame-accent-ink);
+  --secondary: var(--dame-surface-deep);
+  --secondary-foreground: var(--dame-text);
+  --muted: var(--dame-surface-deep);
+  --muted-foreground: var(--dame-muted);
+  --accent: var(--dame-surface);
+  --accent-foreground: var(--dame-text);
+  --destructive: var(--dame-danger);
+  --border: rgba(242, 237, 227, 0.12);
+  --input: rgba(242, 237, 227, 0.16);
+  --ring: var(--dame-accent);
+  --chart-1: var(--dame-accent);
+  --chart-2: var(--dame-board-dark);
+  --chart-3: var(--dame-piece-white);
+  --chart-4: var(--dame-muted);
+  --chart-5: var(--dame-danger);
+  --radius: 0.875rem;
+  --sidebar: var(--dame-surface);
+  --sidebar-foreground: var(--dame-text);
+  --sidebar-primary: var(--dame-accent);
+  --sidebar-primary-foreground: var(--dame-accent-ink);
+  --sidebar-accent: var(--dame-surface-deep);
+  --sidebar-accent-foreground: var(--dame-text);
+  --sidebar-border: rgba(242, 237, 227, 0.12);
+  --sidebar-ring: var(--dame-accent);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: var(--dame-felt-deep);
+  --foreground: var(--dame-text);
+  --card: var(--dame-surface);
+  --card-foreground: var(--dame-text);
+  --popover: var(--dame-surface-deep);
+  --popover-foreground: var(--dame-text);
+  --primary: var(--dame-accent);
+  --primary-foreground: var(--dame-accent-ink);
+  --secondary: var(--dame-surface-deep);
+  --secondary-foreground: var(--dame-text);
+  --muted: var(--dame-surface-deep);
+  --muted-foreground: var(--dame-muted);
+  --accent: var(--dame-surface);
+  --accent-foreground: var(--dame-text);
+  --destructive: var(--dame-danger);
+  --border: rgba(242, 237, 227, 0.12);
+  --input: rgba(242, 237, 227, 0.16);
+  --ring: var(--dame-accent);
+  --chart-1: var(--dame-accent);
+  --chart-2: var(--dame-board-dark);
+  --chart-3: var(--dame-piece-white);
+  --chart-4: var(--dame-muted);
+  --chart-5: var(--dame-danger);
+  --sidebar: var(--dame-surface);
+  --sidebar-foreground: var(--dame-text);
+  --sidebar-primary: var(--dame-accent);
+  --sidebar-primary-foreground: var(--dame-accent-ink);
+  --sidebar-accent: var(--dame-surface-deep);
+  --sidebar-accent-foreground: var(--dame-text);
+  --sidebar-border: rgba(242, 237, 227, 0.12);
+  --sidebar-ring: var(--dame-accent);
 }
 
 @layer base {
@@ -124,8 +128,433 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(
+      120% 90% at 50% 0%,
+      rgba(42, 51, 39, 0.55) 0%,
+      rgba(26, 36, 24, 0) 55%
+    );
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dame classic-premium components (spec 2026-09-09).                  */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+  /*
+   * 3D board scene: perspective wrapper + tilted frame with an extruded
+   * bottom edge — reads as a real, physical board without WebGL.
+   */
+  .dame-board-scene {
+    perspective: 1300px;
+    perspective-origin: 50% 0%;
+  }
+
+  /* Espresso frame with beveled inner edge, ambient shadow, extruded base. */
+  .dame-board-frame {
+    background: linear-gradient(
+      160deg,
+      var(--dame-board-frame-hi) 0%,
+      var(--dame-board-frame) 40%,
+      #32220f 100%
+    );
+    border-radius: calc(var(--dame-radius) * 1.3);
+    transform: rotateX(9deg);
+    transform-origin: 50% 100%;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 235, 200, 0.18),
+      inset 0 -2px 6px rgba(0, 0, 0, 0.45),
+      /* extruded wooden base edge */
+      0 14px 0 -5px #2a1b0e,
+      0 15px 0 -4px rgba(0, 0, 0, 0.55),
+      0 30px 42px -12px rgba(0, 0, 0, 0.7),
+      0 6px 14px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Subtle SVG-noise grain + top-down lighting over the squares. */
+  .dame-grain {
+    pointer-events: none;
+    opacity: 0.09;
+    mix-blend-mode: overlay;
+    background-image:
+      linear-gradient(
+        165deg,
+        rgba(255, 246, 224, 0.5) 0%,
+        rgba(255, 255, 255, 0) 38%,
+        rgba(0, 0, 0, 0.35) 100%
+      ),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .dame-square-light {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.03)),
+      var(--dame-board-light);
+  }
+  .dame-square-dark {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.12)),
+      var(--dame-board-dark);
+  }
+
+  /* Last-move trail: quiet brass tint until the next move. */
+  .dame-trail::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--dame-accent);
+    opacity: 0.22;
+    pointer-events: none;
+  }
+
+  /* Ridged checkers discs — layered radial gradients + groove rings.
+     The drop shadow anchors pieces to the tilted board like standing men. */
+  .dame-piece {
+    border-radius: 9999px;
+    position: relative;
+    z-index: 1;
+    box-shadow:
+      0 2px 3px rgba(0, 0, 0, 0.45),
+      0 6px 10px -2px rgba(0, 0, 0, 0.5),
+      0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .dame-piece::before {
+    content: "";
+    position: absolute;
+    inset: 12%;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+  .dame-piece-white {
+    background:
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(0, 0, 0, 0.05) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 28%,
+        #fffdf6 0%,
+        var(--dame-piece-white) 55%,
+        var(--dame-piece-white-edge) 100%
+      );
+  }
+  .dame-piece-white::before {
+    box-shadow:
+      inset 0 0 0 1.5px rgba(120, 100, 60, 0.35),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9);
+  }
+  .dame-piece-black {
+    background:
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(255, 255, 255, 0.045) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 28%,
+        #55524a 0%,
+        var(--dame-piece-black) 45%,
+        var(--dame-piece-black-edge) 100%
+      );
+  }
+  .dame-piece-black::before {
+    box-shadow:
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.14),
+      inset 0 2px 4px rgba(255, 255, 255, 0.12);
+  }
+
+  /* --- Piece texture variants (site-wide via <html data-piece-texture>) --- */
+
+  /* Walnut / maple grain */
+  :root[data-piece-texture="wood"] .dame-piece-white {
+    background:
+      repeating-linear-gradient(
+        102deg,
+        rgba(139, 90, 43, 0.16) 0 1.5px,
+        rgba(139, 90, 43, 0) 1.5px 5px,
+        rgba(255, 255, 255, 0.08) 5px 6px,
+        rgba(139, 90, 43, 0) 6px 11px
+      ),
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(0, 0, 0, 0.05) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 28%,
+        #fbf4e0 0%,
+        #ecdcbd 55%,
+        #cbb48c 100%
+      );
+  }
+  :root[data-piece-texture="wood"] .dame-piece-black {
+    background:
+      repeating-linear-gradient(
+        102deg,
+        rgba(255, 214, 150, 0.07) 0 1.5px,
+        rgba(0, 0, 0, 0) 1.5px 5px,
+        rgba(0, 0, 0, 0.35) 5px 6px,
+        rgba(0, 0, 0, 0) 6px 11px
+      ),
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(255, 255, 255, 0.045) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 28%,
+        #5a4a38 0%,
+        #2b2318 50%,
+        #15100a 100%
+      );
+  }
+
+  /* Veined marble (SVG turbulence, blended over the base) */
+  :root[data-piece-texture="marble"] .dame-piece-white {
+    background-blend-mode: overlay, normal, normal;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.024 0.06' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.36 0 0 0 0 0.36 0 0 0 0 0.4 0 0 0 0.85 0'/%3E%3C/filter%3E%3Crect width='72' height='72' filter='url(%23m)'/%3E%3C/svg%3E"),
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(0, 0, 0, 0.05) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 28%,
+        #ffffff 0%,
+        #f1ece1 55%,
+        #c9c4b8 100%
+      );
+  }
+  :root[data-piece-texture="marble"] .dame-piece-black {
+    background-blend-mode: screen, normal, normal;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.024 0.06' numOctaves='4' seed='23'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.75 0 0 0 0 0.76 0 0 0 0 0.8 0 0 0 0.28 0'/%3E%3C/filter%3E%3Crect width='72' height='72' filter='url(%23m)'/%3E%3C/svg%3E"),
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(255, 255, 255, 0.045) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 28%,
+        #4c4f56 0%,
+        #212329 50%,
+        #0c0d10 100%
+      );
+  }
+
+  /* Brushed metal */
+  :root[data-piece-texture="metal"] .dame-piece-white {
+    background:
+      repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.16) 0 1px,
+        rgba(0, 0, 0, 0.07) 1px 2px,
+        rgba(255, 255, 255, 0) 2px 4px
+      ),
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(0, 0, 0, 0.06) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 26%,
+        #ffffff 0%,
+        #d4d7dc 48%,
+        #83878e 100%
+      );
+  }
+  :root[data-piece-texture="metal"] .dame-piece-black {
+    background:
+      repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.1) 0 1px,
+        rgba(0, 0, 0, 0.3) 1px 2px,
+        rgba(255, 255, 255, 0) 2px 4px
+      ),
+      repeating-radial-gradient(
+        circle at 50% 50%,
+        rgba(255, 255, 255, 0.05) 0 2px,
+        transparent 2px 9px
+      ),
+      radial-gradient(
+        circle at 35% 26%,
+        #6b7078 0%,
+        #33373e 48%,
+        #101216 100%
+      );
+  }
+
+  /* Picker swatch previews override the global choice for their own button. */
+  .dame-piece-swatch[data-piece-texture="wood"] .dame-piece-white {
+    background:
+      repeating-linear-gradient(102deg, rgba(139, 90, 43, 0.16) 0 1.5px, rgba(139, 90, 43, 0) 1.5px 5px),
+      radial-gradient(circle at 35% 28%, #fbf4e0 0%, #ecdcbd 55%, #cbb48c 100%);
+  }
+  .dame-piece-swatch[data-piece-texture="wood"] .dame-piece-black {
+    background:
+      repeating-linear-gradient(102deg, rgba(255, 214, 150, 0.07) 0 1.5px, rgba(0, 0, 0, 0) 1.5px 5px),
+      radial-gradient(circle at 35% 28%, #5a4a38 0%, #2b2318 50%, #15100a 100%);
+  }
+  .dame-piece-swatch[data-piece-texture="marble"] .dame-piece-white {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.024 0.06' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.36 0 0 0 0 0.36 0 0 0 0 0.4 0 0 0 0.85 0'/%3E%3C/filter%3E%3Crect width='72' height='72' filter='url(%23m)'/%3E%3C/svg%3E"),
+      radial-gradient(circle at 35% 28%, #ffffff 0%, #f1ece1 55%, #c9c4b8 100%);
+  }
+  .dame-piece-swatch[data-piece-texture="marble"] .dame-piece-black {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.024 0.06' numOctaves='4' seed='23'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.75 0 0 0 0 0.76 0 0 0 0 0.8 0 0 0 0.28 0'/%3E%3C/filter%3E%3Crect width='72' height='72' filter='url(%23m)'/%3E%3C/svg%3E"),
+      radial-gradient(circle at 35% 28%, #4c4f56 0%, #212329 50%, #0c0d10 100%);
+  }
+  .dame-piece-swatch[data-piece-texture="metal"] .dame-piece-white {
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, rgba(0, 0, 0, 0.07) 1px 2px, rgba(255, 255, 255, 0) 2px 4px),
+      radial-gradient(circle at 35% 26%, #ffffff 0%, #d4d7dc 48%, #83878e 100%);
+  }
+  .dame-piece-swatch[data-piece-texture="metal"] .dame-piece-black {
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0 1px, rgba(0, 0, 0, 0.3) 1px 2px, rgba(255, 255, 255, 0) 2px 4px),
+      radial-gradient(circle at 35% 26%, #6b7078 0%, #33373e 48%, #101216 100%);
+  }
+
+  /* Hover lift on own, playable pieces (handled via .dame-liftable). */
+  .dame-liftable {
+    transition: transform var(--dame-t-lift) ease-out, box-shadow var(--dame-t-lift) ease-out;
+  }
+  .dame-liftable:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+      0 6px 12px rgba(0, 0, 0, 0.5),
+      0 2px 4px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Selected piece: brass glow (lift/scale handled by the motion layer). */
+  .dame-selected {
+    box-shadow:
+      0 0 0 3px var(--dame-accent),
+      0 0 14px rgba(201, 162, 39, 0.55),
+      0 6px 14px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  /* Legal-destination glowing brass dot / stronger capture ring. */
+  .dame-dest-dot {
+    border-radius: 9999px;
+    z-index: 1;
+    background: radial-gradient(circle at 40% 35%, var(--dame-accent-hi), var(--dame-accent));
+    box-shadow:
+      0 0 10px rgba(201, 162, 39, 0.75),
+      0 0 3px rgba(226, 196, 92, 0.9);
+  }
+  .dame-dest-ring {
+    border-radius: 9999px;
+    z-index: 1;
+    border: 3px solid var(--dame-accent-hi);
+    background: rgba(201, 162, 39, 0.18);
+    box-shadow:
+      0 0 12px rgba(201, 162, 39, 0.6),
+      inset 0 0 8px rgba(201, 162, 39, 0.4);
+  }
+
+  /* Must-capture pulse: teaches the majority rule. */
+  .dame-pulse {
+    animation: dame-pulse 0.9s ease-in-out infinite;
+  }
+
+  /* Invalid input: square shake + terracotta flash (no text popup). */
+  .dame-shake {
+    animation: dame-shake var(--dame-t-shake) ease-in-out;
+  }
+  .dame-flash {
+    animation: dame-flash var(--dame-t-shake) ease-out;
+  }
+
+  /* Promotion: expanding brass ring + crown fade-in. */
+  .dame-burst {
+    animation: dame-burst 0.9s ease-out forwards;
+  }
+
+  /* Not-your-turn dimming. */
+  .dame-dimmed {
+    filter: saturate(0.82) brightness(0.78);
+    transition: filter var(--dame-t-glow) ease;
+  }
+}
+
+@keyframes dame-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(201, 162, 39, 0),
+      0 3px 6px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(201, 162, 39, 0.65),
+      0 0 18px rgba(201, 162, 39, 0.5),
+      0 3px 6px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@keyframes dame-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes dame-flash {
+  0% {
+    box-shadow: inset 0 0 0 999px rgba(208, 91, 76, 0);
+  }
+  35% {
+    box-shadow: inset 0 0 0 999px rgba(208, 91, 76, 0.4);
+  }
+  100% {
+    box-shadow: inset 0 0 0 999px rgba(208, 91, 76, 0);
+  }
+}
+
+@keyframes dame-burst {
+  0% {
+    box-shadow: 0 0 0 0 rgba(226, 196, 92, 0.85);
+    opacity: 1;
+  }
+  100% {
+    box-shadow: 0 0 0 42px rgba(226, 196, 92, 0);
+    opacity: 0;
+  }
+}
+
+/* One shared reduced-motion path: opacity-only or none. */
+@media (prefers-reduced-motion: reduce) {
+  .dame-shake,
+  .dame-pulse,
+  .dame-burst,
+  .dame-flash {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+  .dame-liftable,
+  .dame-liftable:hover,
+  .dame-selected {
+    transform: none;
   }
 }

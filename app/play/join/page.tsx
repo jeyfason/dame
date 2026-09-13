@@ -2,16 +2,18 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Copy, LogIn, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
 const card =
-  "rounded-[var(--dame-radius)] border border-white/10 p-5";
-const cardBg = { background: "var(--dame-felt-deep)" } as const;
+  "grid content-start gap-4 rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.08)] bg-[var(--dame-surface-deep)] p-5 sm:p-6";
 const goldBtn =
-  "rounded-[var(--dame-radius)] bg-[var(--dame-gold)] px-5 py-3 font-semibold text-black disabled:opacity-50";
+  "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-[var(--dame-radius)] bg-[var(--dame-accent)] px-5 py-2.5 font-semibold text-[var(--dame-accent-ink)] transition-transform duration-150 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50";
 const ghostBtn =
-  "rounded-[var(--dame-radius)] border border-white/20 px-5 py-3 disabled:opacity-50";
+  "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.16)] bg-transparent px-5 py-2.5 font-medium transition-colors duration-150 hover:border-[rgba(201,162,39,0.45)] disabled:cursor-not-allowed disabled:opacity-50";
+const errorText =
+  "text-sm text-[var(--dame-danger)]";
 
 function JoinInner() {
   const router = useRouter();
@@ -112,15 +114,24 @@ function JoinInner() {
         : "";
 
   return (
-    <div className="grid gap-6 py-8">
-      <h2 className="text-2xl font-bold">Play a friend</h2>
+    <div className="grid gap-6 py-4 md:grid-cols-2">
+      <h1 className="sr-only">Play a friend</h1>
 
-      <section className={card} style={cardBg} aria-label="Invite a friend">
-        <h3 className="text-lg font-bold">Invite a friend</h3>
-        <p className="mt-1 text-sm opacity-70">
+      <section className={card} aria-label="Invite a friend">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full"
+            style={{ background: "rgba(201,162,39,0.14)", color: "var(--dame-accent-hi)" }}
+          >
+            <UserPlus size={18} />
+          </span>
+          <h2 className="font-heading text-xl font-semibold">Invite a friend</h2>
+        </div>
+        <p className="text-sm leading-relaxed text-[var(--dame-muted)]">
           Create a code, share it, then open the game as White.
         </p>
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
             data-testid="create-invite"
@@ -132,20 +143,23 @@ function JoinInner() {
           </button>
         </div>
         {mintError ? (
-          <p data-testid="invite-error" className="mt-3 text-sm text-red-400">
+          <p data-testid="invite-error" className={errorText}>
             {mintError}
           </p>
         ) : null}
         {invite ? (
-          <div className="mt-4 grid gap-2">
-            <p className="text-sm opacity-70">Share this code (one use, 24h):</p>
+          <div className="grid gap-3 rounded-[var(--dame-radius)] border border-[rgba(201,162,39,0.35)] bg-[rgba(201,162,39,0.06)] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--dame-muted)]">
+              Share this code · one use · 24h
+            </p>
             <p
               data-testid="invite-code"
-              className="text-3xl font-extrabold tracking-[0.2em]"
+              className="text-center font-heading text-4xl font-semibold tracking-[0.24em]"
+              style={{ color: "var(--dame-accent-hi)" }}
             >
               {invite.code}
             </p>
-            <p data-testid="invite-link" className="break-all text-sm opacity-70">
+            <p data-testid="invite-link" className="break-all text-xs text-[var(--dame-muted)]">
               {inviteLink}
             </p>
             <div className="flex flex-wrap gap-3">
@@ -161,7 +175,7 @@ function JoinInner() {
                   }
                 }}
               >
-                Copy link
+                <Copy size={16} /> Copy link
               </button>
               <button
                 type="button"
@@ -171,23 +185,32 @@ function JoinInner() {
                   router.push(`/play/${invite.gameId}?role=white`)
                 }
               >
-                Open game as White
+                <LogIn size={16} /> Open game as White
               </button>
             </div>
           </div>
         ) : null}
       </section>
 
-      <section className={card} style={cardBg} aria-label="Join with a code">
-        <h3 className="text-lg font-bold">Join with a code</h3>
-        <p className="mt-1 text-sm opacity-70">
+      <section className={card} aria-label="Join with a code">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full"
+            style={{ background: "rgba(201,162,39,0.14)", color: "var(--dame-accent-hi)" }}
+          >
+            <LogIn size={18} />
+          </span>
+          <h2 className="font-heading text-xl font-semibold">Join with a code</h2>
+        </div>
+        <p className="text-sm leading-relaxed text-[var(--dame-muted)]">
           Enter your friend&apos;s code to join as Black.
         </p>
-        <form className="mt-4 flex flex-wrap gap-3" onSubmit={joinWithCode}>
+        <form className="grid gap-3" onSubmit={joinWithCode}>
           <input
             data-testid="join-input"
             aria-label="Invite code"
-            className="min-h-[44px] min-w-[200px] flex-1 rounded-[var(--dame-radius)] border border-white/20 bg-transparent px-4 py-3 uppercase tracking-[0.2em]"
+            className="min-h-[52px] rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.16)] bg-transparent px-4 text-center text-xl font-semibold uppercase tracking-[0.24em] outline-none transition-colors focus:border-[var(--dame-accent)]"
             placeholder="ABCDEFGH"
             autoComplete="off"
             spellCheck={false}
@@ -204,7 +227,7 @@ function JoinInner() {
           </button>
         </form>
         {joinError ? (
-          <p data-testid="join-error" className="mt-3 text-sm text-red-400">
+          <p data-testid="join-error" className={errorText}>
             {joinError}
           </p>
         ) : null}
@@ -216,7 +239,7 @@ function JoinInner() {
 
 export default function JoinPage() {
   return (
-    <Suspense fallback={<div className="py-8 text-sm opacity-70">Loading…</div>}>
+    <Suspense fallback={<div className="py-8 text-sm text-[var(--dame-muted)]">Loading…</div>}>
       <JoinInner />
     </Suspense>
   );

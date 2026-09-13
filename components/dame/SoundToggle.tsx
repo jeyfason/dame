@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import { isSoundEnabled, setSoundEnabled } from "@/lib/sound";
 
 export function SoundToggle() {
@@ -20,11 +21,11 @@ export function SoundToggle() {
       data-testid="sound-toggle"
       aria-pressed={on ? "true" : "false"}
       aria-label={on ? "Mute sound effects" : "Unmute sound effects"}
+      title={on ? "Sound on" : "Sound off"}
       onClick={toggle}
-      className="min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] border border-white/20 px-5 py-3 font-semibold transition-colors duration-200"
-      style={{ background: "var(--dame-felt-deep)" }}
+      className="inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center gap-2 rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.14)] bg-[var(--dame-surface-deep)] px-3 text-[var(--dame-muted)] transition-colors duration-150 hover:border-[rgba(201,162,39,0.4)] hover:text-[var(--dame-accent-hi)]"
     >
-      {on ? "Sound on" : "Sound off"}
+      {on ? <Volume2 size={18} /> : <VolumeX size={18} />}
     </button>
   );
 }

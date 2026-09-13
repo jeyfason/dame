@@ -42,38 +42,50 @@ export function ChatPanel({
     <section
       data-testid="chat-panel"
       aria-label="Game chat"
-      className="grid gap-3 rounded-[var(--dame-radius)] border border-white/10 p-4"
-      style={{ background: "var(--dame-felt-deep)" }}
+      className="grid gap-3 rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.08)] bg-[var(--dame-surface-deep)] p-4"
     >
-      <h3 className="text-sm font-bold tracking-wide uppercase">Chat</h3>
+      <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--dame-muted)]">
+        Chat
+      </h3>
       <ul
         data-testid="chat-list"
         aria-label="Chat messages"
         aria-live="polite"
-        className="grid max-h-[320px] gap-2 overflow-y-auto"
+        className="grid max-h-[320px] content-start gap-2 overflow-y-auto pr-1"
       >
         {messages.length === 0 ? (
-          <li className="text-sm opacity-70">No messages yet. Say gg!</li>
+          <li className="text-sm text-[var(--dame-muted)]">No messages yet. Say gg!</li>
         ) : (
-          messages.map((m, i) => (
-            <li
-              key={`${m.at}-${i}`}
-              data-testid={`chat-msg-${i}`}
-              className="text-sm"
-            >
-              <span className="font-semibold">
-                {m.from === "white" ? "White" : "Black"}
-                {you && m.from === you ? " (you)" : ""}:{" "}
-              </span>
-              <span>{m.text}</span>
-            </li>
-          ))
+          messages.map((m, i) => {
+            const mine = you && m.from === you;
+            return (
+              <li
+                key={`${m.at}-${i}`}
+                data-testid={`chat-msg-${i}`}
+                className={`flex ${mine ? "justify-end" : "justify-start"}`}
+              >
+                <span
+                  className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm leading-snug ${
+                    mine
+                      ? "rounded-br-md bg-[rgba(201,162,39,0.16)] text-[var(--dame-text)]"
+                      : "rounded-bl-md bg-[rgba(242,237,227,0.07)] text-[var(--dame-text)]"
+                  }`}
+                >
+                  <span className="mr-1.5 text-xs font-semibold text-[var(--dame-muted)]">
+                    {m.from === "white" ? "White" : "Black"}
+                    {mine ? " (you)" : ""}
+                  </span>
+                  {m.text}
+                </span>
+              </li>
+            );
+          })
         )}
       </ul>
       <p
         data-testid="chat-typing"
         aria-live="polite"
-        className="min-h-[20px] text-xs opacity-70"
+        className="min-h-[20px] text-xs text-[var(--dame-muted)]"
       >
         {opponentTyping ? "Opponent is typing…" : ""}
       </p>
@@ -88,7 +100,7 @@ export function ChatPanel({
               setDraft((d) => `${d ? `${d} ` : ""}${e}`.slice(0, 500));
               pokeTyping();
             }}
-            className="min-h-[44px] min-w-[44px] cursor-pointer rounded-[var(--dame-radius)] border border-white/20 px-3 py-2 text-sm transition-opacity duration-150 hover:opacity-80"
+            className="min-h-[36px] cursor-pointer rounded-full border border-[rgba(242,237,227,0.14)] px-3 py-1.5 text-xs text-[var(--dame-muted)] transition-colors duration-150 hover:border-[rgba(201,162,39,0.45)] hover:text-[var(--dame-accent-hi)]"
           >
             {e}
           </button>
@@ -115,15 +127,15 @@ export function ChatPanel({
             pokeTyping();
           }}
           placeholder="Message (max 500)…"
-          className="min-h-[44px] min-w-0 flex-1 rounded-[var(--dame-radius)] border border-white/20 bg-transparent px-4 py-2 text-sm outline-none"
+          className="min-h-[44px] min-w-0 flex-1 rounded-[var(--dame-radius)] border border-[rgba(242,237,227,0.16)] bg-transparent px-4 py-2 text-sm outline-none transition-colors focus:border-[var(--dame-accent)]"
         />
         <button
           type="submit"
           data-testid="chat-send"
           aria-label="Send chat message"
           disabled={!draft.trim()}
-          className="min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] px-5 py-2 text-sm font-semibold text-black transition-opacity duration-150 hover:opacity-90 disabled:opacity-50"
-          style={{ background: "var(--dame-gold)" }}
+          className="min-h-[44px] cursor-pointer rounded-[var(--dame-radius)] px-5 py-2 text-sm font-semibold text-[var(--dame-accent-ink)] transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ background: "var(--dame-accent)" }}
         >
           Send
         </button>

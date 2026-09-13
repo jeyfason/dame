@@ -1,17 +1,29 @@
-import { ReactNode } from "react";
-import { UserBadge } from "@/components/dame/UserBadge";
+import type { ReactNode } from "react";
+import { auth } from "@clerk/nextjs/server";
+import { NavBar, MobileTabs } from "@/components/dame/NavBar";
+import { PieceTextureSync } from "@/lib/piece-texture";
 
-export function Shell({ children }: { children: ReactNode }) {
+async function profileHref(): Promise<string> {
+  // Presence of a signed-in user decides where "Profile" points; a missing
+  // Clerk context (keyless dev/test) degrades to the sign-in page.
+  try {
+    const { userId } = await auth();
+    return userId ? `/profile/${userId}` : "/sign-in";
+  } catch {
+    return "/sign-in";
+  }
+}
+
+export async function Shell({ children }: { children: ReactNode }) {
+  const href = await profileHref();
   return (
-    <div className="min-h-dvh bg-[var(--dame-ebony)] text-[var(--dame-ivory)]">
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-        <span className="text-lg font-bold tracking-tight">Dame</span>
-        <div className="flex items-center gap-4">
-          <span className="text-base text-[var(--dame-muted-on-dark)]">Chess.com for checkers</span>
-          <UserBadge />
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 pb-16">{children}</main>
+    <div className="min-h-dvh text-[var(--dame-text)]">
+      <PieceTextureSync />
+      <NavBar profileHref={href} />
+      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 md:pb-16">
+        {children}
+      </main>
+      <MobileTabs profileHref={href} />
     </div>
   );
 }

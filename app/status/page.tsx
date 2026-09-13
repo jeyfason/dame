@@ -20,9 +20,9 @@ function Card({
   return (
     <div
       style={{
-        background: ok ? "var(--dame-felt)" : "var(--dame-ebony)",
-        color: "var(--dame-ivory)",
-        border: `2px solid ${ok ? "var(--dame-teal)" : "var(--dame-gold)"}`,
+        background: ok ? "var(--dame-surface)" : "var(--dame-surface-deep)",
+        color: "var(--dame-text)",
+        border: `2px solid ${ok ? "#5fbf6f" : "var(--dame-danger)"}`,
         borderRadius: "var(--dame-radius)",
         padding: "1rem 1.25rem",
         minWidth: 160,
@@ -61,13 +61,13 @@ export default function StatusPage() {
     <main
       style={{
         background: "var(--dame-felt-deep)",
-        color: "var(--dame-ivory)",
+        color: "var(--dame-text)",
         minHeight: "100vh",
         padding: "2rem",
       }}
     >
-      <h1 style={{ fontSize: 28, fontWeight: 800 }}>Dame status</h1>
-      <p style={{ color: "var(--dame-muted-on-dark)" }}>
+      <h1 className="font-heading" style={{ fontSize: 28, fontWeight: 600 }}>Dame status</h1>
+      <p style={{ color: "var(--dame-muted)" }}>
         v{status?.version ?? "…"} · {status?.release ?? "…"}
       </p>
       <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>

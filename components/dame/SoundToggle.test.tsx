@@ -10,11 +10,13 @@ import {
   isSoundEnabled,
   setSoundEnabled,
   playSound,
+  playMultiCapture,
 } from "@/lib/sound";
 
 beforeEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
+  delete (window as unknown as Record<string, unknown>).Audio;
 });
 
 describe("sound lib", () => {
@@ -39,6 +41,31 @@ describe("sound lib", () => {
     playSound("capture");
     playSound("win");
     expect(AC).not.toHaveBeenCalled();
+  });
+
+  it("multi-capture faah: plays the sample when enabled, silence when disabled", () => {
+    const played: string[] = [];
+    class FakeAudio {
+      src: string;
+      preload = "";
+      currentTime = 0;
+      constructor(src: string) {
+        this.src = src;
+        played.push(src);
+      }
+      play() {
+        return Promise.resolve();
+      }
+    }
+    (window as unknown as Record<string, unknown>).Audio = FakeAudio;
+
+    setSoundEnabled(false);
+    playMultiCapture();
+    expect(played).toHaveLength(0);
+
+    setSoundEnabled(true);
+    playMultiCapture();
+    expect(played).toEqual(["/sounds/faah.mp3"]);
   });
 });
 

@@ -118,10 +118,11 @@ function findKingCaptures(
 function quietMoves(board: Board, color: Color, r: number, c: number, piece: Piece): Move[] {
   const moves: Move[] = [];
   if (piece.kind === "man") {
-    // Brief §6.1 deviation (documented): men step quietly forward AND
-    // backward. Strict FMJD quiet steps are forward-only; captures are
-    // already bidirectional here. Locked by regression test.
-    for (const [dr, dc] of DIRS) {
+    // Strict FMJD international draughts: men's quiet steps are
+    // forward-diagonal only (white toward row 0, black toward row 9).
+    // Captures stay bidirectional (see findManCaptures).
+    const dr = color === "white" ? -1 : 1;
+    for (const dc of [-1, 1]) {
       const nr = r + dr;
       const nc = c + dc;
       if (!inBounds(nr, nc) || board[nr][nc] !== null) continue;
