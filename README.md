@@ -1,99 +1,170 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dame — Chess.com, but for checkers
 
-## Getting Started
+Dame is an open platform for playing **international draughts (10×10)** online: live rated matches against friends, a built-in bot with three strength levels, a Glicko-2 ladder, game chat, and a handcrafted classic-premium board you can actually feel through the screen.
 
-First, run the development server:
+<p align="center">
+  <img src="docs/screenshots/landing.png" alt="Dame landing page" width="820" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/play-vs-bot.png" alt="Playing the built-in bot" width="640" />
+</p>
+
+## Features
+
+- **Strict FMJD international draughts** — 10×10 board, forward-only men, flying kings, mandatory majority captures, promotion ends capture chains. Implemented as a pluggable rules engine (`lib/rules/`), so other variants are new modules, not rewrites.
+- **Play vs the bot** — a client-side negamax engine with alpha-beta pruning and iterative deepening (`lib/bot/`). Three levels: Easy, Medium, Hard. No account required, unrated.
+- **Live rated matches** — invite a friend with a one-tap code, play in a shared realtime room (Durable Objects + WebSockets), server-validated moves, reconnection handling.
+- **Glicko-2 ladder** — honest ratings with rating deviation, per-game rating history, public leaderboard.
+- **Game chat & presence** — emotes, typing indicators, opponent online/offline dots.
+- **Physical in-board feedback** — invalid taps shake the square, mandatory-capture pieces pulse, promotions burst with a crown, last move leaves a brass trail. A custom "faah!" sample plays on any multi-capture.
+- **Customizable pieces** — four handcrafted textures (classic lacquer, walnut grain, marble, brushed metal), persisted per player.
+- **Sound design** — WebAudio synth for moves/captures/wins plus a recorded call-out for double and triple jumps. Fully toggleable.
+
+## Tech stack
+
+| Layer      | Choice |
+| ---------- | ------ |
+| Web app    | Next.js (App Router) · React · TypeScript strict · Tailwind CSS 4 |
+| Auth       | Clerk (middleware-protected routes, themed hosted UI) |
+| Database   | Neon Postgres via Drizzle ORM (HTTP driver) |
+| Realtime   | Cloudflare Worker + `GameRoom` Durable Object (WebSockets, SQLite state) |
+| Ratings    | Glicko-2 (`lib/ratings/`) |
+| Email      | Resend + React Email templates |
+| Errors     | Sentry |
+| Hosting    | Cloudflare Workers via [OpenNext](https://opennext.js.org/cloudflare) |
+| Tooling    | Bun · Vitest · Playwright · ESLint · Drizzle Kit |
+
+## Project structure
+
+```
+app/                     Next.js App Router (pages + API routes)
+components/dame/         Dame UI (board, plaques, bot, chat, nav, pickers)
+components/ui/           shadcn/ui primitives
+lib/rules/               Pluggable draughts rules engine (FMJD international)
+lib/bot/                 Bot engine (negamax + alpha-beta + iterative deepening)
+lib/ratings/             Glicko-2 rating math
+lib/db/                  Drizzle schema + Neon client
+hooks/useGameRoom.ts     Realtime room client (WebSocket protocol)
+design-system/DAME/      Design system master file (tokens, components, motion)
+docs/specs/              Product + design specs
+docs/screenshots/        Product screenshots
+worker/                  Realtime worker: Durable Object game rooms
+drizzle/                 SQL migrations
+tests/                   Playwright E2E suites
+emails/                  React Email templates
+```
+
+## Getting started
+
+### Prerequisites
+
+- [Bun](https://bun.com) 1.3+
+- A [Neon](https://neon.tech) Postgres database
+- A [Clerk](https://clerk.com) application (email + Google social login)
+- A [Cloudflare](https://dash.cloudflare.com) account (realtime worker + hosting)
+- Optional: a [Resend](https://resend.com) API key for invite emails, a Sentry project for error tracking
+
+### 1. Install and configure
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+cp .env.example .env.local   # if present, otherwise create .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill `.env.local` (never commit it):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Purpose |
+| -------- | ------- |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | Clerk auth |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | Auth route paths (`/sign-in`, `/sign-up`) |
+| `NEXT_PUBLIC_ROOM_WS_URL` | Realtime worker WebSocket base URL |
+| `GAME_TOKEN_SECRET` | HMAC secret minting room role tokens (`openssl rand -hex 32`) |
+| `NEXT_PUBLIC_SENTRY_DSN` | Optional error tracking |
+| `RESEND_API_KEY` | Optional invite emails |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Set up the database
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Realtime Worker (Stage 3)
-
-`worker/` is a Cloudflare Worker + `GameRoom` Durable Object (one per gameId).
-Local dev: `cd worker && bun x wrangler dev --local` (needs `.dev.vars`, never commit it).
-
-### Where to find Cloudflare credentials
-
-- **Account ID**: open [dash.cloudflare.com](https://dash.cloudflare.com) — the ID is in the
-  dashboard URL (`dash.cloudflare.com/<ACCOUNT_ID>`) and on the Workers overview page.
-- **API token**: Dashboard → **My Profile → API Tokens → Create Token**.
-  Grant **Workers (edit)** + **Durable Objects (edit)**. Use it as `CLOUDFLARE_API_TOKEN`
-  (via `wrangler login` or env — never commit it).
-
-### `.dev.vars` template (copy to `worker/.dev.vars`, git-ignored)
-
-See `worker/.dev.vars.example`:
-
-```ini
-GAME_TOKEN_SECRET="replace-with-rand-hex-32"
-CLERK_JWKS_URL="https://<your-clerk-domain>/.well-known/jwks.json"
-CLOUDFLARE_ACCOUNT_ID=""
-CLOUDFLARE_API_TOKEN=""
-NEXT_PUBLIC_ROOM_WS_URL="ws://localhost:8787"
+```bash
+bunx drizzle-kit push       # applies drizzle/*.sql migrations
 ```
 
-Generate the secret with `openssl rand -hex 32`. Deploy secrets with
-`wrangler secret put GAME_TOKEN_SECRET` (never in code or git).
+### 3. Run the app
 
-### Create-game URL flow (no new UI)
+```bash
+bun dev                     # http://localhost:3000
+```
 
-- `POST /api/room` (Clerk session required; `E2E_BYPASS_AUTH=1` only outside
-  production) → `{ gameId, tokens: { white, black }, wsUrl }`.
-- `GET /api/room?gameId=<id>&role=white|black` → `{ gameId, role, token, wsUrl }`.
-- Open `/play/<gameId>?role=white` and `/play/<gameId>?role=black` — the page
-  fetches its role token via `GET /api/room` then joins
-  `${NEXT_PUBLIC_ROOM_WS_URL}/room/<gameId>/ws`.
-- Worker parity: `POST /room` (same Clerk gate) mints both tokens;
-  `GET /room/<gameId>/ws` upgrades. Game end POSTs `{ gameId, winner, reason,
-  version }` to `FINISH_URL` when set (else no-op); Next stub
-  `POST /api/games/finish` logs + returns 200 (Stage 4 persists).
+To play locally **without** any Clerk/DB setup (keyless mode, protected routes open):
 
-## Launch checklist (Stage 6 Task 4)
+```bash
+E2E_BYPASS_AUTH=1 bun dev
+```
 
-- [ ] Env: copy `worker/.dev.vars.example` → `worker/.dev.vars`
-  (git-ignored); set `GAME_TOKEN_SECRET` (`openssl rand -hex 32`),
-  `CLERK_JWKS_URL`, `NEXT_PUBLIC_ROOM_WS_URL`; web `.env.local` needs
-  `DATABASE_URL`, Clerk keys, `NEXT_PUBLIC_SENTRY_DSN`.
-- [ ] Migrate: `bun x drizzle-kit push` (applies `drizzle/*.sql`:
-  ratings, history-unique, social, friendships-unordered).
-- [ ] Flag seed: insert `feature_flags` rows (`voice` off by default;
-  `getFlag` fails closed when `DATABASE_URL` is unset).
-- [ ] Secrets: `wrangler secret put GAME_TOKEN_SECRET` (+ `CLERK_JWKS_URL`
-  as a var); never commit `.dev.vars` or real values.
-- [ ] Deploy worker: `bun x wrangler deploy --config worker/wrangler.toml`;
-  smoke `GET /health` + one WS join/move on the deployed URL.
-- [ ] Deploy web: `bun run build` green, then deploy; smoke `/api/status`
-  (db + worker pings) and `/status` page.
-- [ ] Sentry confirm: hit `/api/sentry-test` (dev-gated) and verify the
-  event + release appears in the Sentry dashboard.
-- [ ] Load: `bun worker/load/run.ts` passes p95 <150ms vs staging
-  (local burst p95 ~331ms under workerd emulation — see
-  `worker/load/report.md`; re-prove against staging before launch).
+### 4. Run the realtime worker
+
+```bash
+cd worker
+bun install
+cp .dev.vars.example .dev.vars   # set GAME_TOKEN_SECRET + NEXT_PUBLIC_ROOM_WS_URL
+bunx wrangler dev --local        # ws://localhost:8787
+```
+
+Then point `NEXT_PUBLIC_ROOM_WS_URL` in the web app at the worker URL. The
+create-game flow is UI-free: `POST /api/room` mints role tokens,
+`/play/<gameId>?role=white|black` joins the room.
+
+## Testing
+
+```bash
+bun run typecheck           # tsc --noEmit
+bun run lint                # eslint
+bunx vitest run             # unit + component tests (engine, API routes, UI)
+bunx playwright test        # E2E — needs a dev server; see tests/*.spec.ts headers
+```
+
+The rules engine is test-locked: forward-only men's moves, bidirectional
+captures, majority-capture rule, flying kings, and promotion semantics all
+have regression suites under `lib/rules/`.
+
+## Deployment
+
+The web app targets **Cloudflare Workers** via OpenNext:
+
+```bash
+bunx opennextjs-cloudflare build
+bunx opennextjs-cloudflare deploy
+```
+
+`wrangler.jsonc` carries the R2 incremental cache, image binding, and the
+server-side Clerk route vars. Secrets (database URL, Clerk secret key, game
+token secret, Resend key) live in `wrangler secret put` — never in git.
+
+The realtime worker deploys separately:
+
+```bash
+cd worker
+bunx wrangler deploy        # uses worker/wrangler.toml (Durable Object migration included)
+wrangler secret put GAME_TOKEN_SECRET
+```
+
+Smoke checks after deploying: `/api/status` (database + realtime worker
+health), `/status` dashboard, and one invite → join → move → finish →
+leaderboard round-trip.
+
+## Contributing
+
+Contributions are welcome. A few ground rules to keep reviews fast:
+
+- `bun run typecheck && bun run lint && bunx vitest run` must pass before every commit.
+- Rules-engine changes need regression tests in `lib/rules/` — the existing
+  suites are the contract.
+- UI work follows `design-system/DAME/MASTER.md`: no raw hex in components
+  (tokens live in `app/dame-tokens.css`), no toasts during gameplay (feedback
+  is physical and on the board), board testids are a stable contract.
+- Keep PRs scoped to one stage of `docs/specs/` where practical.
+
+## License
+
+All rights reserved until a license is decided. Reach out before reusing the
+code in production.

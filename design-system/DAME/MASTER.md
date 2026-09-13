@@ -8,7 +8,7 @@
 
 **Project:** Dame
 **Direction:** Classic premium — a real board game in the browser
-**Spec:** `docs/superpowers/specs/2026-09-09-dame-ui-ux-revamp-design.md` (approved 2026-09-09)
+**Spec:** `docs/specs/2026-09-09-dame-ui-ux-revamp-design.md` (approved 2026-09-09)
 **Last updated:** 2026-09-13 — supersedes the previous purple/neon spec (never applied)
 
 ---

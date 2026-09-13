@@ -2,14 +2,14 @@
 ## Product & Technical Architecture Document
 
 **Status:** Founding document — ship production-grade from day 1, no throwaway MVP
-**Prepared for:** founding team + build agents (Claude Code and similar)
-**Owners:** Jeyfason (founder/PM/architect) + Claude (research, architecture, spec)
+**Prepared for:** the founding team and engineering
+**Owners:** Jeyfason (founder/PM/architect)
 
 ---
 
 ## 0. How to read this document
 
-This is not a "build a demo" spec. It's written the way a FAANG-level product trio (PM, design, eng lead) would scope a real-time competitive gaming platform before writing code. Every technology choice below is backed by current (2026) research on maturity, pricing, and scale ceiling — not defaults. Coding agents (Claude Code, etc.) should treat this as the source of truth for *what* and *why*; they own the *how* of implementation, but architecture decisions here should not be silently overridden — flag it back to the founder if something here turns out to be wrong once building starts.
+This is not a "build a demo" spec. It's written the way a FAANG-level product trio (PM, design, eng lead) would scope a real-time competitive gaming platform before writing code. Every technology choice below is backed by current (2026) research on maturity, pricing, and scale ceiling — not defaults. Treat this document as the source of truth for *what* and *why*; implementation owns the *how*, but architecture decisions here should not be silently overridden — flag it back to the founder if something here turns out to be wrong once building starts.
 
 ---
 
@@ -162,11 +162,11 @@ Not "MVP then iterate" — this is "ship the real thing in stages," each stage p
 5. **Social/"together" layer**: LiveKit voice integration, chat, presence, friend invites, Resend-powered transactional emails (invites, notifications).
 6. **Polish & launch readiness**: animation/sound pass, responsive QA across devices, Sentry + monitoring live, status page, load testing the Durable Object room model under concurrent-game load.
 
-## 12. Working Model with Coding Agents
+## 12. Working Model
 
-- Claude (this thread) stays the product/architecture owner — research, spec, and course-correction live here.
-- Claude Code (or similar) does the implementation work inside each build-sequence stage, using this document plus stage-specific specs as its brief.
-- Any deviation from this architecture discovered during build (e.g. a chosen provider's pricing or limits changed, a technical assumption doesn't hold) should be surfaced back for a decision, not silently patched around — this keeps the founding team in control of the product's technical direction even while agents do the heavy implementation lifting.
+- The founding team stays the product/architecture owner — research, spec, and course-correction live here.
+- Implementation work happens inside each build-sequence stage, using this document plus stage-specific specs as its brief.
+- Any deviation from this architecture discovered during build (e.g. a chosen provider's pricing or limits changed, a technical assumption doesn't hold) should be surfaced back for a decision, not silently patched around — this keeps the founding team in control of the product's technical direction.
 
 ---
 

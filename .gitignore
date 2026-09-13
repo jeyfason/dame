@@ -54,3 +54,16 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# local AI/dev tool configs (never commit)
+.claude/
+.zcode/
+.agents/
+.cursor/
+.windsurf/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.claude*
+**/.claude*
+**/.zcode*
